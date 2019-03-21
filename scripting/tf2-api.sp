@@ -6,7 +6,7 @@
 /*****************************/
 //Defines
 #define PLUGIN_DESCRIPTION "Offers other plugins easy API for some basic TF2 features."
-#define PLUGIN_VERSION "1.0.1"
+#define PLUGIN_VERSION "1.0.2"
 
 /*****************************/
 //Includes
@@ -28,6 +28,9 @@ Handle g_Forward_OnClassChange;
 
 forward void TF2_OnClassChangePost(int client, TFClassType class);
 Handle g_Forward_OnClassChangePost;
+
+forward void TF2_OnWeaponFire(int client, int weapon);
+Handle g_Forward_OnWeaponFire;
 
 /*****************************/
 //Globals
@@ -51,6 +54,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	g_Forward_OnObjectDamagedPost = CreateGlobalForward("TF2_OnObjectDamagedPost", ET_Ignore, Param_Cell, Param_Cell, Param_Cell, Param_Cell, Param_Float, Param_Cell);
 	g_Forward_OnClassChange = CreateGlobalForward("TF2_OnClassChange", ET_Event, Param_Cell, Param_CellByRef);
 	g_Forward_OnClassChangePost = CreateGlobalForward("TF2_OnClassChangePost", ET_Ignore, Param_Cell, Param_Cell);
+	g_Forward_OnWeaponFire = CreateGlobalForward("TF2_OnClassChangePost", ET_Ignore, Param_Cell, Param_Cell);
 	
 	return APLRes_Success;
 }
@@ -126,5 +130,13 @@ public void Event_OnChangeClassPost(Event event, const char[] name, bool dontBro
 	Call_StartForward(g_Forward_OnClassChangePost);
 	Call_PushCell(client);
 	Call_PushCell(class);
+	Call_Finish();
+}
+
+public Action TF2_CalcIsAttackCritical(int client, int weapon, char[] weaponname, bool& result)
+{
+	Call_StartForward(g_Forward_OnWeaponFire);
+	Call_PushCell(client);
+	Call_PushCell(weapon);
 	Call_Finish();
 }

@@ -6,7 +6,7 @@
 /*****************************/
 //Defines
 #define PLUGIN_DESCRIPTION "Offers other plugins easy API for some basic TF2 features."
-#define PLUGIN_VERSION "1.0.0"
+#define PLUGIN_VERSION "1.0.1"
 
 /*****************************/
 //Includes
@@ -22,6 +22,12 @@ Handle g_Forward_OnObjectDamaged;
 
 forward void TF2_OnObjectDamagedPost(int entity, TFObjectType type, int& attacker, int& inflictor, float& damage, int& damagetype);
 Handle g_Forward_OnObjectDamagedPost;
+
+forward Action TF2_OnClassChange(int client, TFClassType& class);
+Handle g_Forward_OnClassChange;
+
+forward Action TF2_OnClassChangePost(int client, TFClassType class);
+Handle g_Forward_OnClassChangePost;
 
 /*****************************/
 //Globals
@@ -43,6 +49,8 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	
 	g_Forward_OnObjectDamaged = CreateGlobalForward("TF2_OnObjectDamaged", ET_Event, Param_Cell, Param_Cell, Param_CellByRef, Param_CellByRef, Param_FloatByRef, Param_CellByRef);
 	g_Forward_OnObjectDamagedPost = CreateGlobalForward("TF2_OnObjectDamagedPost", ET_Ignore, Param_Cell, Param_Cell, Param_Cell, Param_Cell, Param_Float, Param_Cell);
+	g_Forward_OnClassChange = CreateGlobalForward("TF2_OnClassChange", ET_Event, Param_Cell, Param_CellByRef);
+	g_Forward_OnClassChangePost = CreateGlobalForward("TF2_OnClassChangePost", ET_Ignore, Param_Cell, Param_Cell);
 	
 	return APLRes_Success;
 }
@@ -50,6 +58,9 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 public void OnPluginStart()
 {
 	CreateConVar("sm_tf2_api_version", PLUGIN_VERSION, PLUGIN_DESCRIPTION, FCVAR_REPLICATED | FCVAR_NOTIFY | FCVAR_SPONLY | FCVAR_DONTRECORD);
+	
+	HookEvent("player_changeclass", Event_OnChangeClass, EventHookMode_Pre);
+	HookEvent("player_changeclass", Event_OnChangeClassPost, EventHookMode_Post);
 }
 
 public void OnEntityCreated(int entity, const char[] classname)
@@ -86,5 +97,34 @@ public void Object_OnTakeDamagePost(int victim, int attacker, int inflictor, flo
 	Call_PushCell(inflictor);
 	Call_PushFloat(damage);
 	Call_PushCell(damagetype);
+	Call_Finish();
+}
+
+public Action Event_OnChangeClass(Event event, const char[] name, bool dontBroadcast)
+{
+	int client = GetClientOfUserId(event.GetInt("userid"));
+	int class = event.GetInt("class");
+	
+	Call_StartForward(g_Forward_OnClassChange);
+	Call_PushCell(client);
+	Call_PushCellRef(class);
+	
+	Action status = Plugin_Continue;
+	Call_Finish(status);
+	
+	if (status == Plugin_Changed)
+		event.SetInt("class", class);
+	
+	return status;
+}
+
+public void Event_OnChangeClassPost(Event event, const char[] name, bool dontBroadcast)
+{
+	int client = GetClientOfUserId(event.GetInt("userid"));
+	int class = event.GetInt("class");
+	
+	Call_StartForward(g_Forward_OnClassChangePost);
+	Call_PushCell(client);
+	Call_PushCell(class);
 	Call_Finish();
 }

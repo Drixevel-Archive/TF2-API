@@ -6,7 +6,7 @@
 /*****************************/
 //Defines
 #define PLUGIN_DESCRIPTION "Offers other plugins easy API for some basic TF2 features."
-#define PLUGIN_VERSION "1.0.4"
+#define PLUGIN_VERSION "1.0.5"
 
 #define MAX_BUTTONS 25
 
@@ -47,6 +47,12 @@ Handle g_Forward_OnCallMedic;
 forward void TF2_OnCallMedicPost(int client);
 Handle g_Forward_OnCallMedicPost;
 
+forward Action TF2_OnRegeneratePlayer(int client);
+Handle g_Forward_OnRegeneratePlayer;
+
+forward void TF2_OnRegeneratePlayerPost(int client);
+Handle g_Forward_OnRegeneratePlayerPost;
+
 /*****************************/
 //Globals
 
@@ -76,6 +82,8 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	g_Forward_OnButtonReleasePost = CreateGlobalForward("TF2_OnButtonReleasePost", ET_Ignore, Param_Cell, Param_Cell);
 	g_Forward_OnCallMedic = CreateGlobalForward("TF2_OnCallMedic", ET_Event, Param_Cell);
 	g_Forward_OnCallMedicPost = CreateGlobalForward("TF2_OnCallMedicPost", ET_Ignore, Param_Cell);
+	g_Forward_OnRegeneratePlayer = CreateGlobalForward("TF2_OnRegeneratePlayer", ET_Event, Param_Cell);
+	g_Forward_OnRegeneratePlayerPost = CreateGlobalForward("TF2_OnRegeneratePlayerPost", ET_Ignore, Param_Cell);
 	
 	return APLRes_Success;
 }
@@ -86,6 +94,9 @@ public void OnPluginStart()
 	
 	HookEvent("player_changeclass", Event_OnChangeClass, EventHookMode_Pre);
 	HookEvent("player_changeclass", Event_OnChangeClassPost, EventHookMode_Post);
+	
+	HookEvent("post_inventory_application", Event_OnRegeneratePlayer, EventHookMode_Pre);
+	HookEvent("post_inventory_application", Event_OnRegeneratePlayerPost, EventHookMode_Post);
 	
 	AddCommandListener(Listener_VoiceMenu, "voicemenu");
 }
@@ -223,4 +234,26 @@ public Action Listener_VoiceMenu(int client, const char[] command, int argc)
 	Call_Finish();
 	
 	return Plugin_Continue;
+}
+
+public Action Event_OnRegeneratePlayer(Event event, const char[] name, bool dontBroadcast)
+{
+	int client = GetClientOfUserId(event.GetInt("userid"));
+	
+	Call_StartForward(g_Forward_OnRegeneratePlayer);
+	Call_PushCell(client);
+	
+	Action status = Plugin_Continue;
+	Call_Finish(status);
+	
+	return status;
+}
+
+public void Event_OnRegeneratePlayerPost(Event event, const char[] name, bool dontBroadcast)
+{
+	int client = GetClientOfUserId(event.GetInt("userid"));
+	
+	Call_StartForward(g_Forward_OnRegeneratePlayerPost);
+	Call_PushCell(client);
+	Call_Finish();
 }

@@ -6,7 +6,7 @@
 /*****************************/
 //Defines
 #define PLUGIN_DESCRIPTION "Offers other plugins easy API for some basic TF2 features."
-#define PLUGIN_VERSION "1.0.3"
+#define PLUGIN_VERSION "1.0.4"
 
 #define MAX_BUTTONS 25
 
@@ -41,6 +41,12 @@ Handle g_Forward_OnButtonPressPost;
 forward void TF2_OnButtonRelease(int client, int button);
 Handle g_Forward_OnButtonReleasePost;
 
+forward Action TF2_OnCallMedic(int client);
+Handle g_Forward_OnCallMedic;
+
+forward void TF2_OnCallMedicPost(int client);
+Handle g_Forward_OnCallMedicPost;
+
 /*****************************/
 //Globals
 
@@ -68,6 +74,8 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	g_Forward_OnWeaponFirePost = CreateGlobalForward("TF2_OnWeaponFirePost", ET_Ignore, Param_Cell, Param_Cell);
 	g_Forward_OnButtonPressPost = CreateGlobalForward("TF2_OnButtonPressPost", ET_Ignore, Param_Cell, Param_Cell);
 	g_Forward_OnButtonReleasePost = CreateGlobalForward("TF2_OnButtonReleasePost", ET_Ignore, Param_Cell, Param_Cell);
+	g_Forward_OnCallMedic = CreateGlobalForward("TF2_OnCallMedic", ET_Event, Param_Cell);
+	g_Forward_OnCallMedicPost = CreateGlobalForward("TF2_OnCallMedicPost", ET_Ignore, Param_Cell);
 	
 	return APLRes_Success;
 }
@@ -78,6 +86,8 @@ public void OnPluginStart()
 	
 	HookEvent("player_changeclass", Event_OnChangeClass, EventHookMode_Pre);
 	HookEvent("player_changeclass", Event_OnChangeClassPost, EventHookMode_Post);
+	
+	AddCommandListener(Listener_VoiceMenu, "voicemenu");
 }
 
 public void OnEntityCreated(int entity, const char[] classname)
@@ -186,4 +196,31 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 	}
 	
 	g_LastButtons[client] = buttons;
+}
+
+public Action Listener_VoiceMenu(int client, const char[] command, int argc)
+{
+	char sVoice[32];
+	GetCmdArg(1, sVoice, sizeof(sVoice));
+
+	char sVoice2[32];
+	GetCmdArg(2, sVoice2, sizeof(sVoice2));
+
+	if (StringToInt(sVoice) != 0 && StringToInt(sVoice2) != 0)
+		return Plugin_Continue;
+	
+	Call_StartForward(g_Forward_OnCallMedic);
+	Call_PushCell(client);
+	
+	Action status = Plugin_Continue;
+	Call_Finish(status);
+	
+	if (status != Plugin_Continue)
+		return Plugin_Stop;
+	
+	Call_StartForward(g_Forward_OnCallMedicPost);
+	Call_PushCell(client);
+	Call_Finish();
+	
+	return Plugin_Continue;
 }

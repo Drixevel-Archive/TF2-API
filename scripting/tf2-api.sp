@@ -6,11 +6,14 @@
 /*****************************/
 //Defines
 #define PLUGIN_DESCRIPTION "Offers other plugins easy API for some basic TF2 features."
-#define PLUGIN_VERSION "1.0.2"
+#define PLUGIN_VERSION "1.0.3"
+
+#define MAX_BUTTONS 25
 
 /*****************************/
 //Includes
 #include <sourcemod>
+#include <sdktools>
 #include <sdkhooks>
 #include <tf2_stocks>
 
@@ -30,10 +33,18 @@ forward void TF2_OnClassChangePost(int client, TFClassType class);
 Handle g_Forward_OnClassChangePost;
 
 forward void TF2_OnWeaponFire(int client, int weapon);
-Handle g_Forward_OnWeaponFire;
+Handle g_Forward_OnWeaponFirePost;
+
+forward void TF2_OnButtonPress(int client, int button);
+Handle g_Forward_OnButtonPressPost;
+
+forward void TF2_OnButtonRelease(int client, int button);
+Handle g_Forward_OnButtonReleasePost;
 
 /*****************************/
 //Globals
+
+int g_LastButtons[MAXPLAYERS + 1];
 
 /*****************************/
 //Plugin Info
@@ -54,7 +65,9 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	g_Forward_OnObjectDamagedPost = CreateGlobalForward("TF2_OnObjectDamagedPost", ET_Ignore, Param_Cell, Param_Cell, Param_Cell, Param_Cell, Param_Float, Param_Cell);
 	g_Forward_OnClassChange = CreateGlobalForward("TF2_OnClassChange", ET_Event, Param_Cell, Param_CellByRef);
 	g_Forward_OnClassChangePost = CreateGlobalForward("TF2_OnClassChangePost", ET_Ignore, Param_Cell, Param_Cell);
-	g_Forward_OnWeaponFire = CreateGlobalForward("TF2_OnClassChangePost", ET_Ignore, Param_Cell, Param_Cell);
+	g_Forward_OnWeaponFirePost = CreateGlobalForward("TF2_OnWeaponFirePost", ET_Ignore, Param_Cell, Param_Cell);
+	g_Forward_OnButtonPressPost = CreateGlobalForward("TF2_OnButtonPressPost", ET_Ignore, Param_Cell, Param_Cell);
+	g_Forward_OnButtonReleasePost = CreateGlobalForward("TF2_OnButtonReleasePost", ET_Ignore, Param_Cell, Param_Cell);
 	
 	return APLRes_Success;
 }
@@ -135,8 +148,42 @@ public void Event_OnChangeClassPost(Event event, const char[] name, bool dontBro
 
 public Action TF2_CalcIsAttackCritical(int client, int weapon, char[] weaponname, bool& result)
 {
-	Call_StartForward(g_Forward_OnWeaponFire);
+	Call_StartForward(g_Forward_OnWeaponFirePost);
 	Call_PushCell(client);
 	Call_PushCell(weapon);
 	Call_Finish();
+}
+
+public void OnClientDisconnect_Post(int client)
+{
+	g_LastButtons[client] = 0;
+}
+
+public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3], float angles[3], int& weapon)
+{
+	int button;
+	for (int i = 0; i < MAX_BUTTONS; i++)
+	{
+		button = (1 << i);
+		
+		if ((buttons & button))
+		{
+			if (!(g_LastButtons[client] & button))
+			{
+				Call_StartForward(g_Forward_OnButtonPressPost);
+				Call_PushCell(client);
+				Call_PushCell(button);
+				Call_Finish();
+			}
+		}
+		else if ((g_LastButtons[client] & button))
+		{
+			Call_StartForward(g_Forward_OnButtonReleasePost);
+			Call_PushCell(client);
+			Call_PushCell(button);
+			Call_Finish();
+		}
+	}
+	
+	g_LastButtons[client] = buttons;
 }

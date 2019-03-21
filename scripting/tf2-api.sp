@@ -26,7 +26,7 @@ Handle g_Forward_OnObjectDamagedPost;
 forward Action TF2_OnClassChange(int client, TFClassType& class);
 Handle g_Forward_OnClassChange;
 
-forward Action TF2_OnClassChangePost(int client, TFClassType class);
+forward void TF2_OnClassChangePost(int client, TFClassType class);
 Handle g_Forward_OnClassChangePost;
 
 /*****************************/

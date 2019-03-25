@@ -6,7 +6,7 @@
 /*****************************/
 //Defines
 #define PLUGIN_DESCRIPTION "Offers other plugins easy API for some basic TF2 features."
-#define PLUGIN_VERSION "1.0.5"
+#define PLUGIN_VERSION "1.0.6"
 
 #define MAX_BUTTONS 25
 
@@ -32,13 +32,13 @@ Handle g_Forward_OnClassChange;
 forward void TF2_OnClassChangePost(int client, TFClassType class);
 Handle g_Forward_OnClassChangePost;
 
-forward void TF2_OnWeaponFire(int client, int weapon);
+forward void TF2_OnWeaponFirePost(int client, int weapon);
 Handle g_Forward_OnWeaponFirePost;
 
-forward void TF2_OnButtonPress(int client, int button);
+forward void TF2_OnButtonPressPost(int client, int button);
 Handle g_Forward_OnButtonPressPost;
 
-forward void TF2_OnButtonRelease(int client, int button);
+forward void TF2_OnButtonReleasePost(int client, int button);
 Handle g_Forward_OnButtonReleasePost;
 
 forward Action TF2_OnCallMedic(int client);
@@ -52,6 +52,9 @@ Handle g_Forward_OnRegeneratePlayer;
 
 forward void TF2_OnRegeneratePlayerPost(int client);
 Handle g_Forward_OnRegeneratePlayerPost;
+
+forward void TF2_OnMedicHealPost(int client, int target);
+Handle g_Forward_OnMedicHealPost;
 
 /*****************************/
 //Globals
@@ -84,6 +87,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	g_Forward_OnCallMedicPost = CreateGlobalForward("TF2_OnCallMedicPost", ET_Ignore, Param_Cell);
 	g_Forward_OnRegeneratePlayer = CreateGlobalForward("TF2_OnRegeneratePlayer", ET_Event, Param_Cell);
 	g_Forward_OnRegeneratePlayerPost = CreateGlobalForward("TF2_OnRegeneratePlayerPost", ET_Ignore, Param_Cell);
+	g_Forward_OnMedicHealPost = CreateGlobalForward("TF2_OnMedicHealPost", ET_Ignore, Param_Cell, Param_Cell);
 	
 	return APLRes_Success;
 }
@@ -207,6 +211,34 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 	}
 	
 	g_LastButtons[client] = buttons;
+
+	if (IsPlayerAlive(client) && TF2_GetPlayerClass(client) != TFClass_Medic)
+	{
+		int target;
+		if ((target = TF2_GetHealingTarget(client)) != -1)
+		{
+			Call_StartForward(g_Forward_OnMedicHealPost);
+			Call_PushCell(client);
+			Call_PushCell(target);
+			Call_Finish();
+		}
+	}
+}
+
+int TF2_GetHealingTarget(int client)
+{
+	int weapon = GetPlayerWeaponSlot(client, 1);
+
+	if (!IsValidEntity(weapon) || weapon != GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon"))
+		return -1;
+
+	char sClassname[32];
+	GetEdictClassname(weapon, sClassname, sizeof(sClassname));
+
+	if (StrContains(sClassname, "tf_weapon_med") == -1)
+		return -1;
+
+	return GetEntProp(weapon, Prop_Send, "m_bHealing") ? GetEntPropEnt(weapon, Prop_Send, "m_hHealingTarget") : -1;
 }
 
 public Action Listener_VoiceMenu(int client, const char[] command, int argc)

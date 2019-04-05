@@ -6,7 +6,7 @@
 /*****************************/
 //Defines
 #define PLUGIN_DESCRIPTION "Offers other plugins easy API for some basic TF2 features."
-#define PLUGIN_VERSION "1.0.6"
+#define PLUGIN_VERSION "1.0.7"
 
 #define MAX_BUTTONS 25
 
@@ -56,6 +56,15 @@ Handle g_Forward_OnRegeneratePlayerPost;
 forward void TF2_OnMedicHealPost(int client, int target);
 Handle g_Forward_OnMedicHealPost;
 
+forward void TF2_OnMilkedPost(int client, int attacker);
+Handle g_Forward_OnMilkedPost;
+
+forward void TF2_OnJaratedPost(int client, int attacker);
+Handle g_Forward_OnJaratedPost;
+
+forward void TF2_OnGassedPost(int client, int attacker);
+Handle g_Forward_OnGassedPost;
+
 /*****************************/
 //Globals
 
@@ -88,6 +97,9 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	g_Forward_OnRegeneratePlayer = CreateGlobalForward("TF2_OnRegeneratePlayer", ET_Event, Param_Cell);
 	g_Forward_OnRegeneratePlayerPost = CreateGlobalForward("TF2_OnRegeneratePlayerPost", ET_Ignore, Param_Cell);
 	g_Forward_OnMedicHealPost = CreateGlobalForward("TF2_OnMedicHealPost", ET_Ignore, Param_Cell, Param_Cell);
+	g_Forward_OnMilkedPost = CreateGlobalForward("TF2_OnMilkedPost", ET_Ignore, Param_Cell, Param_Cell);
+	g_Forward_OnJaratedPost = CreateGlobalForward("TF2_OnJaratedPost", ET_Ignore, Param_Cell, Param_Cell);
+	g_Forward_OnGassedPost = CreateGlobalForward("TF2_OnGassedPost", ET_Ignore, Param_Cell, Param_Cell);
 	
 	return APLRes_Success;
 }
@@ -288,4 +300,85 @@ public void Event_OnRegeneratePlayerPost(Event event, const char[] name, bool do
 	Call_StartForward(g_Forward_OnRegeneratePlayerPost);
 	Call_PushCell(client);
 	Call_Finish();
+}
+
+public void OnEntityDestroyed(int entity)
+{
+	if (entity < MaxClients)
+		return;
+	
+	if (HasClassname(entity, "tf_projectile_jar_milk"))
+	{
+		int owner = GetEntPropEnt(entity, Prop_Send, "m_hThrower");
+		
+		if (IsValidEntity(owner))
+		{
+			for (int i = 1; i <= MaxClients; i++)
+			{
+				if (!IsClientInGame(i) || !IsPlayerAlive(i) || GetEntitiesDistance(i, entity) > 250.0 || !TF2_IsPlayerInCondition(i, TFCond_Milked))
+					continue;
+				
+				Call_StartForward(g_Forward_OnMilkedPost);
+				Call_PushCell(i);
+				Call_PushCell(owner);
+				Call_Finish();
+			}
+		}
+	}
+	
+	if (HasClassname(entity, "tf_projectile_jar"))
+	{
+		int owner = GetEntPropEnt(entity, Prop_Send, "m_hThrower");
+		
+		if (IsValidEntity(owner))
+		{
+			for (int i = 1; i <= MaxClients; i++)
+			{
+				if (!IsClientInGame(i) || !IsPlayerAlive(i) || GetEntitiesDistance(i, entity) > 250.0 || !TF2_IsPlayerInCondition(i, TFCond_Jarated))
+					continue;
+				
+				Call_StartForward(g_Forward_OnJaratedPost);
+				Call_PushCell(i);
+				Call_PushCell(owner);
+				Call_Finish();
+			}
+		}
+	}
+	
+	if (HasClassname(entity, "tf_projectile_jar_gas"))
+	{
+		int owner = GetEntPropEnt(entity, Prop_Send, "m_hThrower");
+		
+		if (IsValidEntity(owner))
+		{
+			for (int i = 1; i <= MaxClients; i++)
+			{
+				if (!IsClientInGame(i) || !IsPlayerAlive(i) || GetEntitiesDistance(i, entity) > 250.0 || !TF2_IsPlayerInCondition(i, TFCond_Gas))
+					continue;
+				
+				Call_StartForward(g_Forward_OnGassedPost);
+				Call_PushCell(i);
+				Call_PushCell(owner);
+				Call_Finish();
+			}
+		}
+	}
+}
+
+bool HasClassname(int entity, const char[] name, bool caseSensitive = true)
+{
+	char sBuffer[256];
+	GetEntityClassname(entity, sBuffer, sizeof(sBuffer));
+	return StrEqual(sBuffer, name, caseSensitive);
+}
+
+float GetEntitiesDistance(int entity1, int entity2)
+{
+	float fOrigin1[3];
+	GetEntPropVector(entity1, Prop_Send, "m_vecOrigin", fOrigin1);
+
+	float fOrigin2[3];
+	GetEntPropVector(entity2, Prop_Send, "m_vecOrigin", fOrigin2);
+	
+	return GetVectorDistance(fOrigin1, fOrigin2);
 }

@@ -6,7 +6,7 @@
 /*****************************/
 //Defines
 #define PLUGIN_DESCRIPTION "Offers other plugins easy API for some basic TF2 features."
-#define PLUGIN_VERSION "1.0.7"
+#define PLUGIN_VERSION "1.0.8"
 
 #define MAX_BUTTONS 25
 
@@ -65,6 +65,12 @@ Handle g_Forward_OnJaratedPost;
 forward void TF2_OnGassedPost(int client, int attacker);
 Handle g_Forward_OnGassedPost;
 
+forward Action TF2_OnProjectileThink(int entity, const char[] classname, int& owner, int& launcher, bool& critical);
+Handle g_Forward_OnProjectileThink;
+
+forward void TF2_OnProjectileThinkPost(int entity, const char[] classname, int owner, int launcher, bool critical);
+Handle g_Forward_OnProjectileThinkPost;
+
 /*****************************/
 //Globals
 
@@ -100,6 +106,8 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	g_Forward_OnMilkedPost = CreateGlobalForward("TF2_OnMilkedPost", ET_Ignore, Param_Cell, Param_Cell);
 	g_Forward_OnJaratedPost = CreateGlobalForward("TF2_OnJaratedPost", ET_Ignore, Param_Cell, Param_Cell);
 	g_Forward_OnGassedPost = CreateGlobalForward("TF2_OnGassedPost", ET_Ignore, Param_Cell, Param_Cell);
+	g_Forward_OnProjectileThink = CreateGlobalForward("TF2_OnProjectileThink", ET_Event, Param_Cell, Param_String, Param_CellByRef, Param_CellByRef, Param_CellByRef);
+	g_Forward_OnProjectileThinkPost = CreateGlobalForward("TF2_OnProjectileThinkPost", ET_Ignore, Param_Cell, Param_String, Param_Cell, Param_Cell, Param_Cell);
 	
 	return APLRes_Success;
 }
@@ -381,4 +389,50 @@ float GetEntitiesDistance(int entity1, int entity2)
 	GetEntPropVector(entity2, Prop_Send, "m_vecOrigin", fOrigin2);
 	
 	return GetVectorDistance(fOrigin1, fOrigin2);
+}
+
+public void OnGameFrame()
+{
+	int entity = -1; char classname[64]; Action results;
+	int launcher; int owner; bool critical;
+	while ((entity = FindEntityByClassname(entity, "tf_projectile_*")) != -1)
+	{
+		results = Plugin_Continue;
+		GetEntityClassname(entity, classname, sizeof(classname));
+		launcher = GetEntPropEnt(entity, Prop_Send, "m_hOriginalLauncher");
+		owner = GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity");
+		critical = HasEntProp(entity, Prop_Send, "m_bCritical") ? GetEntPropBool(entity, Prop_Send, "m_bCritical") : false;
+
+		Call_StartForward(g_Forward_OnProjectileThink);
+		Call_PushCell(entity);
+		Call_PushString(classname);
+		Call_PushCellRef(launcher);
+		Call_PushCellRef(owner);
+		Call_PushCellRef(critical);
+
+		if (Call_Finish(results) != SP_ERROR_NONE || results >= Plugin_Handled)
+			continue;
+		
+		if (results == Plugin_Changed)
+		{
+			SetEntPropEnt(entity, Prop_Send, "m_hOriginalLauncher", launcher);
+			SetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity", owner);
+
+			if (HasEntProp(entity, Prop_Send, "m_bCritical"))
+				SetEntProp(entity, Prop_Send, "m_bCritical", critical);
+		}
+
+		Call_StartForward(g_Forward_OnProjectileThinkPost);
+		Call_PushCell(entity);
+		Call_PushString(classname);
+		Call_PushCell(launcher);
+		Call_PushCell(owner);
+		Call_PushCell(critical);
+		Call_Finish();
+	}
+}
+
+bool GetEntPropBool(int entity, PropType type, const char[] prop, int size = 4, int element = 0)
+{
+	return view_as<bool>(GetEntProp(entity, type, prop, size, element));
 }

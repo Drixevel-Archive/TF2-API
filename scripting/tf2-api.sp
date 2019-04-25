@@ -6,7 +6,7 @@
 /*****************************/
 //Defines
 #define PLUGIN_DESCRIPTION "Offers other plugins easy API for some basic TF2 features."
-#define PLUGIN_VERSION "1.1.0"
+#define PLUGIN_VERSION "1.1.2"
 
 #define MAX_BUTTONS 25
 
@@ -16,6 +16,7 @@
 #include <sdktools>
 #include <sdkhooks>
 #include <tf2_stocks>
+#include <tf2items>
 
 /*****************************/
 //Forwards
@@ -80,6 +81,18 @@ Handle g_Forward_OnLeaveSpawnRoomPost;
 forward void TF2_OnTouchVisualizerPost(int client, int visualizer);
 Handle g_Forward_OnTouchVisualizerPost;
 
+forward Action TF2_OnWeaponEquip(int client, int itemdefindex);
+Handle g_Forward_OnWeaponEquip;
+
+forward void TF2_OnWeaponEquipPost(int client, int itemdefindex, int entity);
+Handle g_Forward_OnWeaponEquipPost;
+
+forward Action TF2_OnWearableEquip(int client, int itemdefindex);
+Handle g_Forward_OnWearableEquip;
+
+forward void TF2_OnWearableEquipPost(int client, int itemdefindex, int entity);
+Handle g_Forward_OnWearableEquipPost;
+
 /*****************************/
 //Globals
 
@@ -120,6 +133,10 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	g_Forward_OnEnterSpawnRoomPost = CreateGlobalForward("TF2_OnEnterSpawnRoomPost", ET_Ignore, Param_Cell, Param_Cell);
 	g_Forward_OnLeaveSpawnRoomPost = CreateGlobalForward("TF2_OnLeaveSpawnRoomPost", ET_Ignore, Param_Cell, Param_Cell);
 	g_Forward_OnTouchVisualizerPost = CreateGlobalForward("TF2_OnTouchVisualizerPost", ET_Ignore, Param_Cell, Param_Cell);
+	g_Forward_OnWeaponEquip = CreateGlobalForward("TF2_OnWeaponEquip", ET_Event, Param_Cell, Param_Cell);
+	g_Forward_OnWeaponEquipPost = CreateGlobalForward("TF2_OnWeaponEquipPost", ET_Ignore, Param_Cell, Param_Cell, Param_Cell);
+	g_Forward_OnWearableEquip = CreateGlobalForward("TF2_OnWearableEquip", ET_Event, Param_Cell, Param_Cell);
+	g_Forward_OnWearableEquipPost = CreateGlobalForward("TF2_OnWearableEquipPost", ET_Ignore, Param_Cell, Param_Cell, Param_Cell);
 	
 	return APLRes_Success;
 }
@@ -500,4 +517,45 @@ public void OnVisualizerRoomStartTouch(int entity, int other)
 	Call_PushCell(other);
 	Call_PushCell(entity);
 	Call_Finish();
+}
+
+public Action TF2Items_OnGiveNamedItem(int client, char[] classname, int iItemDefinitionIndex, Handle& hItem)
+{
+	Action results = Plugin_Continue;
+
+	if (StrContains(classname, "tf_weapon", false) == 0)
+	{
+		Call_StartForward(g_Forward_OnWeaponEquip);
+		Call_PushCell(client);
+		Call_PushCell(iItemDefinitionIndex);
+		Call_Finish(results);
+	}
+	else if (StrContains(classname, "tf_wearable", false) == 0)
+	{
+		Call_StartForward(g_Forward_OnWearableEquip);
+		Call_PushCell(client);
+		Call_PushCell(iItemDefinitionIndex);
+		Call_Finish(results);
+	}
+
+	return results;
+}
+
+public void TF2Items_OnGiveNamedItem_Post(int client, char[] classname, int itemDefinitionIndex, int itemLevel, int itemQuality, int entityIndex)
+{
+	if (StrContains(classname, "tf_weapon", false) == 0)
+	{
+		Call_StartForward(g_Forward_OnWeaponEquipPost);
+		Call_PushCell(client);
+		Call_PushCell(itemDefinitionIndex);
+		Call_PushCell(entityIndex);
+		Call_Finish();
+	}
+	else if (StrContains(classname, "tf_wearable", false) == 0)
+	{
+		Call_StartForward(g_Forward_OnWearableEquipPost);
+		Call_PushCell(client);
+		Call_PushCell(itemDefinitionIndex);
+		Call_Finish();
+	}
 }

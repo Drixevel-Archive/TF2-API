@@ -6,7 +6,7 @@
 /*****************************/
 //Defines
 #define PLUGIN_DESCRIPTION "Offers other plugins easy API for some basic TF2 features."
-#define PLUGIN_VERSION "1.0.8"
+#define PLUGIN_VERSION "1.1.0"
 
 #define MAX_BUTTONS 25
 
@@ -71,6 +71,15 @@ Handle g_Forward_OnProjectileThink;
 forward void TF2_OnProjectileThinkPost(int entity, const char[] classname, int owner, int launcher, bool critical);
 Handle g_Forward_OnProjectileThinkPost;
 
+forward void TF2_OnEnterSpawnRoomPost(int client, int respawnroom);
+Handle g_Forward_OnEnterSpawnRoomPost;
+
+forward void TF2_OnLeaveSpawnRoomPost(int client, int respawnroom);
+Handle g_Forward_OnLeaveSpawnRoomPost;
+
+forward void TF2_OnTouchVisualizerPost(int client, int visualizer);
+Handle g_Forward_OnTouchVisualizerPost;
+
 /*****************************/
 //Globals
 
@@ -108,6 +117,9 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	g_Forward_OnGassedPost = CreateGlobalForward("TF2_OnGassedPost", ET_Ignore, Param_Cell, Param_Cell);
 	g_Forward_OnProjectileThink = CreateGlobalForward("TF2_OnProjectileThink", ET_Event, Param_Cell, Param_String, Param_CellByRef, Param_CellByRef, Param_CellByRef);
 	g_Forward_OnProjectileThinkPost = CreateGlobalForward("TF2_OnProjectileThinkPost", ET_Ignore, Param_Cell, Param_String, Param_Cell, Param_Cell, Param_Cell);
+	g_Forward_OnEnterSpawnRoomPost = CreateGlobalForward("TF2_OnEnterSpawnRoomPost", ET_Ignore, Param_Cell, Param_Cell);
+	g_Forward_OnLeaveSpawnRoomPost = CreateGlobalForward("TF2_OnLeaveSpawnRoomPost", ET_Ignore, Param_Cell, Param_Cell);
+	g_Forward_OnTouchVisualizerPost = CreateGlobalForward("TF2_OnTouchVisualizerPost", ET_Ignore, Param_Cell, Param_Cell);
 	
 	return APLRes_Success;
 }
@@ -123,6 +135,17 @@ public void OnPluginStart()
 	HookEvent("post_inventory_application", Event_OnRegeneratePlayerPost, EventHookMode_Post);
 	
 	AddCommandListener(Listener_VoiceMenu, "voicemenu");
+
+	int entity = -1;
+	while((entity = FindEntityByClassname(entity, "func_respawnroom")) != -1)
+	{
+		SDKHook(entity, SDKHook_StartTouchPost, OnRespawnRoomStartTouch);
+		SDKHook(entity, SDKHook_EndTouchPost, OnRespawnRoomEndTouch);
+	}
+
+	entity = -1;
+	while((entity = FindEntityByClassname(entity, "func_respawnroomvisualizer")) != -1)
+		SDKHook(entity, SDKHook_StartTouchPost, OnVisualizerRoomStartTouch);
 }
 
 public void OnEntityCreated(int entity, const char[] classname)
@@ -132,6 +155,15 @@ public void OnEntityCreated(int entity, const char[] classname)
 		SDKHook(entity, SDKHook_OnTakeDamage, Object_OnTakeDamage);
 		SDKHook(entity, SDKHook_OnTakeDamagePost, Object_OnTakeDamagePost);
 	}
+
+	if (StrEqual(classname, "func_respawnroom", false))
+	{
+		SDKHook(entity, SDKHook_StartTouchPost, OnRespawnRoomStartTouch);
+		SDKHook(entity, SDKHook_EndTouchPost, OnRespawnRoomEndTouch);
+	}
+
+	if (StrEqual(classname, "func_respawnroomvisualizer", false))
+		SDKHook(entity, SDKHook_StartTouchPost, OnVisualizerRoomStartTouch);
 }
 
 public Action Object_OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, int& damagetype)
@@ -435,4 +467,37 @@ public void OnGameFrame()
 bool GetEntPropBool(int entity, PropType type, const char[] prop, int size = 4, int element = 0)
 {
 	return view_as<bool>(GetEntProp(entity, type, prop, size, element));
+}
+
+public void OnRespawnRoomStartTouch(int entity, int other)
+{
+	if (other < 1 || other > MaxClients)
+		return;
+	
+	Call_StartForward(g_Forward_OnEnterSpawnRoomPost);
+	Call_PushCell(other);
+	Call_PushCell(entity);
+	Call_Finish();
+}
+
+public void OnRespawnRoomEndTouch(int entity, int other)
+{
+	if (other < 1 || other > MaxClients)
+		return;
+	
+	Call_StartForward(g_Forward_OnLeaveSpawnRoomPost);
+	Call_PushCell(other);
+	Call_PushCell(entity);
+	Call_Finish();
+}
+
+public void OnVisualizerRoomStartTouch(int entity, int other)
+{
+	if (other < 1 || other > MaxClients)
+		return;
+	
+	Call_StartForward(g_Forward_OnTouchVisualizerPost);
+	Call_PushCell(other);
+	Call_PushCell(entity);
+	Call_Finish();
 }

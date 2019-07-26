@@ -5,8 +5,9 @@
 
 /*****************************/
 //Defines
+#define PLUGIN_NAME "[TF2] API"
 #define PLUGIN_DESCRIPTION "Offers other plugins easy API for some basic TF2 features."
-#define PLUGIN_VERSION "1.1.2"
+#define PLUGIN_VERSION "1.1.5"
 
 #define MAX_BUTTONS 25
 
@@ -17,81 +18,43 @@
 #include <sdkhooks>
 #include <tf2_stocks>
 #include <tf2items>
+#include <tf2_api>
 
 /*****************************/
 //Forwards
 
-forward Action TF2_OnObjectDamaged(int entity, TFObjectType type, int& attacker, int& inflictor, float& damage, int& damagetype);
+Handle g_Forward_OnPlayerDamaged;
+Handle g_Forward_OnPlayerDamagedPost;
 Handle g_Forward_OnObjectDamaged;
-
-forward void TF2_OnObjectDamagedPost(int entity, TFObjectType type, int& attacker, int& inflictor, float& damage, int& damagetype);
 Handle g_Forward_OnObjectDamagedPost;
-
-forward Action TF2_OnClassChange(int client, TFClassType& class);
 Handle g_Forward_OnClassChange;
-
-forward void TF2_OnClassChangePost(int client, TFClassType class);
 Handle g_Forward_OnClassChangePost;
-
-forward void TF2_OnWeaponFirePost(int client, int weapon);
 Handle g_Forward_OnWeaponFirePost;
-
-forward void TF2_OnButtonPressPost(int client, int button);
 Handle g_Forward_OnButtonPressPost;
-
-forward void TF2_OnButtonReleasePost(int client, int button);
 Handle g_Forward_OnButtonReleasePost;
-
-forward Action TF2_OnCallMedic(int client);
 Handle g_Forward_OnCallMedic;
-
-forward void TF2_OnCallMedicPost(int client);
 Handle g_Forward_OnCallMedicPost;
-
-forward Action TF2_OnRegeneratePlayer(int client);
 Handle g_Forward_OnRegeneratePlayer;
-
-forward void TF2_OnRegeneratePlayerPost(int client);
 Handle g_Forward_OnRegeneratePlayerPost;
-
-forward void TF2_OnMedicHealPost(int client, int target);
 Handle g_Forward_OnMedicHealPost;
-
-forward void TF2_OnMilkedPost(int client, int attacker);
 Handle g_Forward_OnMilkedPost;
-
-forward void TF2_OnJaratedPost(int client, int attacker);
 Handle g_Forward_OnJaratedPost;
-
-forward void TF2_OnGassedPost(int client, int attacker);
 Handle g_Forward_OnGassedPost;
-
-forward Action TF2_OnProjectileThink(int entity, const char[] classname, int& owner, int& launcher, bool& critical);
 Handle g_Forward_OnProjectileThink;
-
-forward void TF2_OnProjectileThinkPost(int entity, const char[] classname, int owner, int launcher, bool critical);
 Handle g_Forward_OnProjectileThinkPost;
-
-forward void TF2_OnEnterSpawnRoomPost(int client, int respawnroom);
 Handle g_Forward_OnEnterSpawnRoomPost;
-
-forward void TF2_OnLeaveSpawnRoomPost(int client, int respawnroom);
 Handle g_Forward_OnLeaveSpawnRoomPost;
-
-forward void TF2_OnTouchVisualizerPost(int client, int visualizer);
 Handle g_Forward_OnTouchVisualizerPost;
-
-forward Action TF2_OnWeaponEquip(int client, int itemdefindex);
 Handle g_Forward_OnWeaponEquip;
-
-forward void TF2_OnWeaponEquipPost(int client, int itemdefindex, int entity);
 Handle g_Forward_OnWeaponEquipPost;
-
-forward Action TF2_OnWearableEquip(int client, int itemdefindex);
 Handle g_Forward_OnWearableEquip;
-
-forward void TF2_OnWearableEquipPost(int client, int itemdefindex, int entity);
 Handle g_Forward_OnWearableEquipPost;
+Handle g_Forward_OnRoundStart;
+Handle g_Forward_OnRoundActive;
+Handle g_Forward_OnArenaRoundStart;
+Handle g_Forward_OnRoundEnd;
+Handle g_Forward_OnPlayerSpawn;
+Handle g_Forward_OnPlayerDeath;
 
 /*****************************/
 //Globals
@@ -102,17 +65,19 @@ int g_LastButtons[MAXPLAYERS + 1];
 //Plugin Info
 public Plugin myinfo = 
 {
-	name = "[TF2] API", 
-	author = "Keith Warren (Drixevel)", 
+	name = PLUGIN_NAME 
+	author = "Drixevel", 
 	description = PLUGIN_DESCRIPTION, 
 	version = PLUGIN_VERSION, 
-	url = "https://github.com/drixevel"
+	url = "https://drixevel.dev/"
 };
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
 	RegPluginLibrary("tf2-api");
 	
+	g_Forward_OnPlayerDamaged = CreateGlobalForward("TF2_OnPlayerDamaged", ET_Event, Param_Cell, Param_Cell, Param_CellByRef, Param_Cell, Param_CellByRef, Param_FloatByRef, Param_CellByRef, Param_CellByRef, Param_Array, Param_Array, Param_Cell);
+	g_Forward_OnPlayerDamagedPost = CreateGlobalForward("TF2_OnPlayerDamagedPost", ET_Ignore, Param_Cell, Param_Cell, Param_Cell, Param_Cell, Param_Cell, Param_Float, Param_Cell, Param_Cell, Param_Array, Param_Array, Param_Cell);
 	g_Forward_OnObjectDamaged = CreateGlobalForward("TF2_OnObjectDamaged", ET_Event, Param_Cell, Param_Cell, Param_CellByRef, Param_CellByRef, Param_FloatByRef, Param_CellByRef);
 	g_Forward_OnObjectDamagedPost = CreateGlobalForward("TF2_OnObjectDamagedPost", ET_Ignore, Param_Cell, Param_Cell, Param_Cell, Param_Cell, Param_Float, Param_Cell);
 	g_Forward_OnClassChange = CreateGlobalForward("TF2_OnClassChange", ET_Event, Param_Cell, Param_CellByRef);
@@ -133,10 +98,16 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	g_Forward_OnEnterSpawnRoomPost = CreateGlobalForward("TF2_OnEnterSpawnRoomPost", ET_Ignore, Param_Cell, Param_Cell);
 	g_Forward_OnLeaveSpawnRoomPost = CreateGlobalForward("TF2_OnLeaveSpawnRoomPost", ET_Ignore, Param_Cell, Param_Cell);
 	g_Forward_OnTouchVisualizerPost = CreateGlobalForward("TF2_OnTouchVisualizerPost", ET_Ignore, Param_Cell, Param_Cell);
-	g_Forward_OnWeaponEquip = CreateGlobalForward("TF2_OnWeaponEquip", ET_Event, Param_Cell, Param_Cell);
-	g_Forward_OnWeaponEquipPost = CreateGlobalForward("TF2_OnWeaponEquipPost", ET_Ignore, Param_Cell, Param_Cell, Param_Cell);
-	g_Forward_OnWearableEquip = CreateGlobalForward("TF2_OnWearableEquip", ET_Event, Param_Cell, Param_Cell);
-	g_Forward_OnWearableEquipPost = CreateGlobalForward("TF2_OnWearableEquipPost", ET_Ignore, Param_Cell, Param_Cell, Param_Cell);
+	g_Forward_OnWeaponEquip = CreateGlobalForward("TF2_OnWeaponEquip", ET_Event, Param_Cell, Param_String, Param_Cell);
+	g_Forward_OnWeaponEquipPost = CreateGlobalForward("TF2_OnWeaponEquipPost", ET_Ignore, Param_Cell, Param_String, Param_Cell, Param_Cell, Param_Cell, Param_Cell);
+	g_Forward_OnWearableEquip = CreateGlobalForward("TF2_OnWearableEquip", ET_Event, Param_Cell, Param_String, Param_Cell);
+	g_Forward_OnWearableEquipPost = CreateGlobalForward("TF2_OnWearableEquipPost", ET_Ignore, Param_Cell, Param_String, Param_Cell, Param_Cell, Param_Cell, Param_Cell);
+	g_Forward_OnRoundStart = CreateGlobalForward("TF2_OnRoundStart", ET_Ignore, Param_Cell);
+	g_Forward_OnRoundActive = CreateGlobalForward("TF2_OnRoundActive", ET_Ignore);
+	g_Forward_OnArenaRoundStart = CreateGlobalForward("TF2_OnArenaRoundStart", ET_Ignore);
+	g_Forward_OnRoundEnd = CreateGlobalForward("TF2_OnRoundEnd", ET_Ignore, Param_Cell, Param_Cell, Param_Cell, Param_Cell, Param_Float, Param_Cell, Param_Cell);
+	g_Forward_OnPlayerSpawn = CreateGlobalForward("TF2_OnPlayerSpawn", ET_Ignore, Param_Cell);
+	g_Forward_OnPlayerDeath = CreateGlobalForward("TF2_OnPlayerDeath", ET_Ignore, Param_Cell, Param_Cell, Param_Cell);
 	
 	return APLRes_Success;
 }
@@ -145,13 +116,26 @@ public void OnPluginStart()
 {
 	CreateConVar("sm_tf2_api_version", PLUGIN_VERSION, PLUGIN_DESCRIPTION, FCVAR_REPLICATED | FCVAR_NOTIFY | FCVAR_SPONLY | FCVAR_DONTRECORD);
 	
+	HookEvent("player_spawn", Event_OnPlayerSpawn, EventHookMode_Post);
+	
+	HookEvent("player_death", Event_OnPlayerDeath, EventHookMode_Post);
+	
 	HookEvent("player_changeclass", Event_OnChangeClass, EventHookMode_Pre);
 	HookEvent("player_changeclass", Event_OnChangeClassPost, EventHookMode_Post);
 	
 	HookEvent("post_inventory_application", Event_OnRegeneratePlayer, EventHookMode_Pre);
 	HookEvent("post_inventory_application", Event_OnRegeneratePlayerPost, EventHookMode_Post);
 	
+	HookEvent("teamplay_round_start", Event_OnRoundStart, EventHookMode_Post);
+	HookEvent("teamplay_round_active", Event_OnRoundActive, EventHookMode_Post);
+	HookEvent("arena_round_start", Event_OnArenaRoundStart, EventHookMode_Post);
+	HookEvent("teamplay_round_win", Event_OnRoundFinished, EventHookMode_Post);
+	
 	AddCommandListener(Listener_VoiceMenu, "voicemenu");
+	
+	for (int i = 1; i <= MaxClients; i++)
+		if (IsClientInGame(i))
+			OnClientPutInServer(i);
 
 	int entity = -1;
 	while((entity = FindEntityByClassname(entity, "func_respawnroom")) != -1)
@@ -163,6 +147,50 @@ public void OnPluginStart()
 	entity = -1;
 	while((entity = FindEntityByClassname(entity, "func_respawnroomvisualizer")) != -1)
 		SDKHook(entity, SDKHook_StartTouchPost, OnVisualizerRoomStartTouch);
+}
+
+public void OnClientPutInServer(int client)
+{
+	SDKHook(client, SDKHook_OnTakeDamage, OnTakeDamage);
+	SDKHook(client, SDKHook_OnTakeDamagePost, OnTakeDamagePost);
+}
+
+public Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, int& damagetype, int& weapon, float damageForce[3], float damagePosition[3], int damagecustom)
+{
+	Call_StartForward(g_Forward_OnPlayerDamaged);
+	Call_PushCell(victim);
+	Call_PushCell(TF2_GetPlayerClass(victim));
+	Call_PushCellRef(attacker);
+	Call_PushCell((attacker > 0 && attacker <= MaxClients) ? TF2_GetPlayerClass(attacker) : TFClass_Unknown);
+	Call_PushCellRef(inflictor);
+	Call_PushFloatRef(damage);
+	Call_PushCellRef(damagetype);
+	Call_PushCellRef(weapon);
+	Call_PushArrayEx(damageForce, sizeof(damageForce), SM_PARAM_COPYBACK);
+	Call_PushArrayEx(damagePosition, sizeof(damagePosition), SM_PARAM_COPYBACK);
+	Call_PushCell(damagecustom);
+	
+	Action results = Plugin_Continue;
+	Call_Finish(results);
+	
+	return results;
+}
+
+public void OnTakeDamagePost(int victim, int attacker, int inflictor, float damage, int damagetype, int weapon, const float damageForce[3], const float damagePosition[3], int damagecustom)
+{
+	Call_StartForward(g_Forward_OnPlayerDamagedPost);
+	Call_PushCell(victim);
+	Call_PushCell(TF2_GetPlayerClass(victim));
+	Call_PushCell(attacker);
+	Call_PushCell((attacker > 0 && attacker <= MaxClients) ? TF2_GetPlayerClass(attacker) : TFClass_Unknown);
+	Call_PushCell(inflictor);
+	Call_PushFloat(damage);
+	Call_PushCell(damagetype);
+	Call_PushCell(weapon);
+	Call_PushArray(damageForce, sizeof(damageForce));
+	Call_PushArray(damagePosition, sizeof(damagePosition));
+	Call_PushCell(damagecustom);
+	Call_Finish();
 }
 
 public void OnEntityCreated(int entity, const char[] classname)
@@ -208,6 +236,22 @@ public void Object_OnTakeDamagePost(int victim, int attacker, int inflictor, flo
 	Call_PushCell(inflictor);
 	Call_PushFloat(damage);
 	Call_PushCell(damagetype);
+	Call_Finish();
+}
+
+public void Event_OnPlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+{
+	Call_StartForward(g_Forward_OnPlayerSpawn);
+	Call_PushCell(GetClientOfUserId(event.GetInt("userid")));
+	Call_Finish();
+}
+
+public void Event_OnPlayerDeath(Event event, const char[] name, bool dontBroadcast)
+{
+	Call_StartForward(g_Forward_OnPlayerDeath);
+	Call_PushCell(GetClientOfUserId(event.GetInt("userid")));
+	Call_PushCell(GetClientOfUserId(event.GetInt("attacker")));
+	Call_PushCell(GetClientOfUserId(event.GetInt("assister")));
 	Call_Finish();
 }
 
@@ -323,7 +367,7 @@ public Action Listener_VoiceMenu(int client, const char[] command, int argc)
 	
 	Call_StartForward(g_Forward_OnCallMedic);
 	Call_PushCell(client);
-	
+		
 	Action status = Plugin_Continue;
 	Call_Finish(status);
 	
@@ -527,6 +571,7 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] classname, int iItemDe
 	{
 		Call_StartForward(g_Forward_OnWeaponEquip);
 		Call_PushCell(client);
+		Call_PushString(classname);
 		Call_PushCell(iItemDefinitionIndex);
 		Call_Finish(results);
 	}
@@ -534,6 +579,7 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] classname, int iItemDe
 	{
 		Call_StartForward(g_Forward_OnWearableEquip);
 		Call_PushCell(client);
+		Call_PushString(classname);
 		Call_PushCell(iItemDefinitionIndex);
 		Call_Finish(results);
 	}
@@ -547,7 +593,10 @@ public void TF2Items_OnGiveNamedItem_Post(int client, char[] classname, int item
 	{
 		Call_StartForward(g_Forward_OnWeaponEquipPost);
 		Call_PushCell(client);
+		Call_PushString(classname);
 		Call_PushCell(itemDefinitionIndex);
+		Call_PushCell(itemLevel);
+		Call_PushCell(itemQuality);
 		Call_PushCell(entityIndex);
 		Call_Finish();
 	}
@@ -555,7 +604,43 @@ public void TF2Items_OnGiveNamedItem_Post(int client, char[] classname, int item
 	{
 		Call_StartForward(g_Forward_OnWearableEquipPost);
 		Call_PushCell(client);
+		Call_PushString(classname);
 		Call_PushCell(itemDefinitionIndex);
+		Call_PushCell(itemLevel);
+		Call_PushCell(itemQuality);
+		Call_PushCell(entityIndex);
 		Call_Finish();
 	}
+}
+
+public void Event_OnRoundStart(Event event, const char[] name, bool dontBroadcast)
+{
+	Call_StartForward(g_Forward_OnRoundStart);
+	Call_PushCell(event.GetInt("full_reset"));
+	Call_Finish();
+}
+
+public void Event_OnRoundActive(Event event, const char[] name, bool dontBroadcast)
+{
+	Call_StartForward(g_Forward_OnRoundActive);
+	Call_Finish();
+}
+
+public void Event_OnArenaRoundStart(Event event, const char[] name, bool dontBroadcast)
+{
+	Call_StartForward(g_Forward_OnArenaRoundStart);
+	Call_Finish();
+}
+
+public void Event_OnRoundFinished(Event event, const char[] name, bool dontBroadcast)
+{
+	Call_StartForward(g_Forward_OnRoundEnd);
+	Call_PushCell(event.GetInt("team"));
+	Call_PushCell(event.GetInt("winreason"));
+	Call_PushCell(event.GetInt("flagcaplimit"));
+	Call_PushCell(event.GetInt("full_round"));
+	Call_PushFloat(event.GetFloat("round_time"));
+	Call_PushCell(event.GetInt("losing_team_num_caps"));
+	Call_PushCell(event.GetInt("was_sudden_death"));
+	Call_Finish();
 }

@@ -47,9 +47,8 @@ forward void TF2_OnRoundStart(bool full_reset);
 forward void TF2_OnRoundActive();
 forward void TF2_OnArenaRoundStart();
 forward void TF2_OnRoundEnd(int team, int winreason, int flagcaplimit, bool full_round, float round_time, int losing_team_num_caps, bool was_sudden_death);
-forward void TF2_OnPlayerSpawn(int client);
-forward void TF2_OnPlayerDeath(int client, int attacker, int assister);
-
+forward void TF2_OnPlayerSpawn(int client, int team, int class);
+forward void TF2_OnPlayerDeath(int client, int attacker, int assister, int damagebits, int stun_flags, int death_flags);
 
 #if !defined REQUIRE_PLUGIN
 public void __pl_tf2_api_SetNTVOptional()

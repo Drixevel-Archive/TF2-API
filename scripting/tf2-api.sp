@@ -65,7 +65,7 @@ int g_LastButtons[MAXPLAYERS + 1];
 //Plugin Info
 public Plugin myinfo = 
 {
-	name = PLUGIN_NAME 
+	name = PLUGIN_NAME,
 	author = "Drixevel", 
 	description = PLUGIN_DESCRIPTION, 
 	version = PLUGIN_VERSION, 
@@ -106,8 +106,8 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	g_Forward_OnRoundActive = CreateGlobalForward("TF2_OnRoundActive", ET_Ignore);
 	g_Forward_OnArenaRoundStart = CreateGlobalForward("TF2_OnArenaRoundStart", ET_Ignore);
 	g_Forward_OnRoundEnd = CreateGlobalForward("TF2_OnRoundEnd", ET_Ignore, Param_Cell, Param_Cell, Param_Cell, Param_Cell, Param_Float, Param_Cell, Param_Cell);
-	g_Forward_OnPlayerSpawn = CreateGlobalForward("TF2_OnPlayerSpawn", ET_Ignore, Param_Cell);
-	g_Forward_OnPlayerDeath = CreateGlobalForward("TF2_OnPlayerDeath", ET_Ignore, Param_Cell, Param_Cell, Param_Cell);
+	g_Forward_OnPlayerSpawn = CreateGlobalForward("TF2_OnPlayerSpawn", ET_Ignore, Param_Cell, Param_Cell, Param_Cell);
+	g_Forward_OnPlayerDeath = CreateGlobalForward("TF2_OnPlayerDeath", ET_Ignore, Param_Cell, Param_Cell, Param_Cell, Param_Cell, Param_Cell, Param_Cell);
 	
 	return APLRes_Success;
 }
@@ -243,6 +243,8 @@ public void Event_OnPlayerSpawn(Event event, const char[] name, bool dontBroadca
 {
 	Call_StartForward(g_Forward_OnPlayerSpawn);
 	Call_PushCell(GetClientOfUserId(event.GetInt("userid")));
+	Call_PushCell(event.GetInt("team"));
+	Call_PushCell(event.GetInt("class"));
 	Call_Finish();
 }
 
@@ -252,6 +254,9 @@ public void Event_OnPlayerDeath(Event event, const char[] name, bool dontBroadca
 	Call_PushCell(GetClientOfUserId(event.GetInt("userid")));
 	Call_PushCell(GetClientOfUserId(event.GetInt("attacker")));
 	Call_PushCell(GetClientOfUserId(event.GetInt("assister")));
+	Call_PushCell(event.GetInt("damagebits"));
+	Call_PushCell(event.GetInt("stun_flags"));
+	Call_PushCell(event.GetInt("death_flags"));
 	Call_Finish();
 }
 

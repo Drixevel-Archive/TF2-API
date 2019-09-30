@@ -17,8 +17,8 @@
 ////////////////////////////
 //Forwards
 
-forward Action TF2_OnPlayerDamaged(int victim, TFClassType victimclass, int& attacker, TFClassType attackerclass, int& inflictor, float& damage, int& damagetype, int& weapon, float damageForce[3], float damagePosition[3], int damagecustom);
-forward void TF2_OnPlayerDamagedPost(int victim, TFClassType victimclass, int attacker, TFClassType attackerclass, int inflictor, float damage, int damagetype, int weapon, const float damageForce[3], const float damagePosition[3], int damagecustom);
+forward Action TF2_OnPlayerDamaged(int victim, TFClassType victimclass, int& attacker, TFClassType attackerclass, int& inflictor, float& damage, int& damagetype, int& weapon, float damageForce[3], float damagePosition[3], int damagecustom, bool alive);
+forward void TF2_OnPlayerDamagedPost(int victim, TFClassType victimclass, int attacker, TFClassType attackerclass, int inflictor, float damage, int damagetype, int weapon, const float damageForce[3], const float damagePosition[3], int damagecustom, bool alive);
 forward Action TF2_OnObjectDamaged(int entity, TFObjectType type, int& attacker, int& inflictor, float& damage, int& damagetype);
 forward void TF2_OnObjectDamagedPost(int entity, TFObjectType type, int& attacker, int& inflictor, float& damage, int& damagetype);
 forward Action TF2_OnClassChange(int client, TFClassType& class);
@@ -48,7 +48,9 @@ forward void TF2_OnRoundActive();
 forward void TF2_OnArenaRoundStart();
 forward void TF2_OnRoundEnd(int team, int winreason, int flagcaplimit, bool full_round, float round_time, int losing_team_num_caps, bool was_sudden_death);
 forward void TF2_OnPlayerSpawn(int client, int team, int class);
-forward void TF2_OnPlayerDeath(int client, int attacker, int assister, int damagebits, int stun_flags, int death_flags);
+forward void TF2_OnPlayerDeath(int client, int attacker, int assister, int damagebits, int stun_flags, int death_flags, int customkill);
+forward void TF2_OnPlayerHealed(int patient, int healer, int amount);
+forward void TF2_OnPlayerTaunting(int client, int index, int defindex);
 
 #if !defined REQUIRE_PLUGIN
 public void __pl_tf2_api_SetNTVOptional()

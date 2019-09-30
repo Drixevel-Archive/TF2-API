@@ -55,6 +55,8 @@ Handle g_Forward_OnArenaRoundStart;
 Handle g_Forward_OnRoundEnd;
 Handle g_Forward_OnPlayerSpawn;
 Handle g_Forward_OnPlayerDeath;
+Handle g_Forward_OnPlayerHealed;
+Handle g_Forward_OnPlayerTaunting;
 
 /*****************************/
 //Globals
@@ -76,8 +78,8 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 {
 	RegPluginLibrary("tf2-api");
 	
-	g_Forward_OnPlayerDamaged = CreateGlobalForward("TF2_OnPlayerDamaged", ET_Event, Param_Cell, Param_Cell, Param_CellByRef, Param_Cell, Param_CellByRef, Param_FloatByRef, Param_CellByRef, Param_CellByRef, Param_Array, Param_Array, Param_Cell);
-	g_Forward_OnPlayerDamagedPost = CreateGlobalForward("TF2_OnPlayerDamagedPost", ET_Ignore, Param_Cell, Param_Cell, Param_Cell, Param_Cell, Param_Cell, Param_Float, Param_Cell, Param_Cell, Param_Array, Param_Array, Param_Cell);
+	g_Forward_OnPlayerDamaged = CreateGlobalForward("TF2_OnPlayerDamaged", ET_Event, Param_Cell, Param_Cell, Param_CellByRef, Param_Cell, Param_CellByRef, Param_FloatByRef, Param_CellByRef, Param_CellByRef, Param_Array, Param_Array, Param_Cell, Param_Cell);
+	g_Forward_OnPlayerDamagedPost = CreateGlobalForward("TF2_OnPlayerDamagedPost", ET_Ignore, Param_Cell, Param_Cell, Param_Cell, Param_Cell, Param_Cell, Param_Float, Param_Cell, Param_Cell, Param_Array, Param_Array, Param_Cell, Param_Cell);
 	g_Forward_OnObjectDamaged = CreateGlobalForward("TF2_OnObjectDamaged", ET_Event, Param_Cell, Param_Cell, Param_CellByRef, Param_CellByRef, Param_FloatByRef, Param_CellByRef);
 	g_Forward_OnObjectDamagedPost = CreateGlobalForward("TF2_OnObjectDamagedPost", ET_Ignore, Param_Cell, Param_Cell, Param_Cell, Param_Cell, Param_Float, Param_Cell);
 	g_Forward_OnClassChange = CreateGlobalForward("TF2_OnClassChange", ET_Event, Param_Cell, Param_CellByRef);
@@ -107,7 +109,9 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	g_Forward_OnArenaRoundStart = CreateGlobalForward("TF2_OnArenaRoundStart", ET_Ignore);
 	g_Forward_OnRoundEnd = CreateGlobalForward("TF2_OnRoundEnd", ET_Ignore, Param_Cell, Param_Cell, Param_Cell, Param_Cell, Param_Float, Param_Cell, Param_Cell);
 	g_Forward_OnPlayerSpawn = CreateGlobalForward("TF2_OnPlayerSpawn", ET_Ignore, Param_Cell, Param_Cell, Param_Cell);
-	g_Forward_OnPlayerDeath = CreateGlobalForward("TF2_OnPlayerDeath", ET_Ignore, Param_Cell, Param_Cell, Param_Cell, Param_Cell, Param_Cell, Param_Cell);
+	g_Forward_OnPlayerDeath = CreateGlobalForward("TF2_OnPlayerDeath", ET_Ignore, Param_Cell, Param_Cell, Param_Cell, Param_Cell, Param_Cell, Param_Cell, Param_Cell);
+	g_Forward_OnPlayerHealed = CreateGlobalForward("TF2_OnPlayerHealed", ET_Ignore, Param_Cell, Param_Cell, Param_Cell);
+	g_Forward_OnPlayerTaunting = CreateGlobalForward("TF2_OnPlayerTaunting", ET_Ignore, Param_Cell, Param_Cell, Param_Cell);
 	
 	return APLRes_Success;
 }
@@ -117,7 +121,7 @@ public void OnPluginStart()
 	CreateConVar("sm_tf2_api_version", PLUGIN_VERSION, PLUGIN_DESCRIPTION, FCVAR_REPLICATED | FCVAR_NOTIFY | FCVAR_SPONLY | FCVAR_DONTRECORD);
 	
 	HookEvent("player_spawn", Event_OnPlayerSpawn, EventHookMode_Post);
-	
+	HookEvent("player_healed", Event_OnPlayerHealed, EventHookMode_Post);
 	HookEvent("player_death", Event_OnPlayerDeath, EventHookMode_Post);
 	
 	HookEvent("player_changeclass", Event_OnChangeClass, EventHookMode_Pre);
@@ -152,7 +156,9 @@ public void OnPluginStart()
 public void OnClientPutInServer(int client)
 {
 	SDKHook(client, SDKHook_OnTakeDamage, OnTakeDamage);
+	SDKHook(client, SDKHook_OnTakeDamageAlive, OnTakeDamageAlive);
 	SDKHook(client, SDKHook_OnTakeDamagePost, OnTakeDamagePost);
+	SDKHook(client, SDKHook_OnTakeDamageAlivePost, OnTakeDamageAlivePost);
 }
 
 public Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, int& damagetype, int& weapon, float damageForce[3], float damagePosition[3], int damagecustom)
@@ -169,6 +175,29 @@ public Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& dam
 	Call_PushArrayEx(damageForce, sizeof(damageForce), SM_PARAM_COPYBACK);
 	Call_PushArrayEx(damagePosition, sizeof(damagePosition), SM_PARAM_COPYBACK);
 	Call_PushCell(damagecustom);
+	Call_PushCell(false);
+	
+	Action results = Plugin_Continue;
+	Call_Finish(results);
+	
+	return results;
+}
+
+public Action OnTakeDamageAlive(int victim, int& attacker, int& inflictor, float& damage, int& damagetype, int& weapon, float damageForce[3], float damagePosition[3], int damagecustom)
+{
+	Call_StartForward(g_Forward_OnPlayerDamaged);
+	Call_PushCell(victim);
+	Call_PushCell(TF2_GetPlayerClass(victim));
+	Call_PushCellRef(attacker);
+	Call_PushCell((attacker > 0 && attacker <= MaxClients) ? TF2_GetPlayerClass(attacker) : TFClass_Unknown);
+	Call_PushCellRef(inflictor);
+	Call_PushFloatRef(damage);
+	Call_PushCellRef(damagetype);
+	Call_PushCellRef(weapon);
+	Call_PushArrayEx(damageForce, sizeof(damageForce), SM_PARAM_COPYBACK);
+	Call_PushArrayEx(damagePosition, sizeof(damagePosition), SM_PARAM_COPYBACK);
+	Call_PushCell(damagecustom);
+	Call_PushCell(true);
 	
 	Action results = Plugin_Continue;
 	Call_Finish(results);
@@ -190,6 +219,25 @@ public void OnTakeDamagePost(int victim, int attacker, int inflictor, float dama
 	Call_PushArray(damageForce, sizeof(damageForce));
 	Call_PushArray(damagePosition, sizeof(damagePosition));
 	Call_PushCell(damagecustom);
+	Call_PushCell(false);
+	Call_Finish();
+}
+
+public void OnTakeDamageAlivePost(int victim, int attacker, int inflictor, float damage, int damagetype, int weapon, const float damageForce[3], const float damagePosition[3], int damagecustom)
+{
+	Call_StartForward(g_Forward_OnPlayerDamagedPost);
+	Call_PushCell(victim);
+	Call_PushCell(TF2_GetPlayerClass(victim));
+	Call_PushCell(attacker);
+	Call_PushCell((attacker > 0 && attacker <= MaxClients) ? TF2_GetPlayerClass(attacker) : TFClass_Unknown);
+	Call_PushCell(inflictor);
+	Call_PushFloat(damage);
+	Call_PushCell(damagetype);
+	Call_PushCell(weapon);
+	Call_PushArray(damageForce, sizeof(damageForce));
+	Call_PushArray(damagePosition, sizeof(damagePosition));
+	Call_PushCell(damagecustom);
+	Call_PushCell(true);
 	Call_Finish();
 }
 
@@ -248,6 +296,15 @@ public void Event_OnPlayerSpawn(Event event, const char[] name, bool dontBroadca
 	Call_Finish();
 }
 
+public void Event_OnPlayerHealed(Event event, const char[] name, bool dontBroadcast)
+{
+	Call_StartForward(g_Forward_OnPlayerHealed);
+	Call_PushCell(GetClientOfUserId(event.GetInt("patient")));
+	Call_PushCell(GetClientOfUserId(event.GetInt("healer")));
+	Call_PushCell(GetClientOfUserId(event.GetInt("amount")));
+	Call_Finish();
+}
+
 public void Event_OnPlayerDeath(Event event, const char[] name, bool dontBroadcast)
 {
 	Call_StartForward(g_Forward_OnPlayerDeath);
@@ -257,6 +314,7 @@ public void Event_OnPlayerDeath(Event event, const char[] name, bool dontBroadca
 	Call_PushCell(event.GetInt("damagebits"));
 	Call_PushCell(event.GetInt("stun_flags"));
 	Call_PushCell(event.GetInt("death_flags"));
+	Call_PushCell(event.GetInt("customkill"));
 	Call_Finish();
 }
 
@@ -648,4 +706,16 @@ public void Event_OnRoundFinished(Event event, const char[] name, bool dontBroad
 	Call_PushCell(event.GetInt("losing_team_num_caps"));
 	Call_PushCell(event.GetInt("was_sudden_death"));
 	Call_Finish();
+}
+
+public void TF2_OnConditionAdded(int client, TFCond condition)
+{
+	if (condition == TFCond_Taunting)
+	{
+		Call_StartForward(g_Forward_OnPlayerTaunting);
+		Call_PushCell(client);
+		Call_PushCell(GetEntProp(client, Prop_Send, "m_iTauntIndex"));
+		Call_PushCell(GetEntProp(client, Prop_Send, "m_iTauntItemDefIndex"));
+		Call_Finish();
+	}
 }

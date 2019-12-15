@@ -7,7 +7,7 @@
 //Defines
 #define PLUGIN_NAME "[TF2] API"
 #define PLUGIN_DESCRIPTION "Offers other plugins easy API for some basic TF2 features."
-#define PLUGIN_VERSION "1.1.5"
+#define PLUGIN_VERSION "1.1.6"
 
 #define MAX_BUTTONS 25
 
@@ -16,9 +16,10 @@
 #include <sourcemod>
 #include <sdktools>
 #include <sdkhooks>
+#include <dhooks>
 #include <tf2_stocks>
 #include <tf2items>
-#include <tf2_api>
+#include <tf2-api>
 
 /*****************************/
 //Forwards
@@ -57,11 +58,17 @@ Handle g_Forward_OnPlayerSpawn;
 Handle g_Forward_OnPlayerDeath;
 Handle g_Forward_OnPlayerHealed;
 Handle g_Forward_OnPlayerTaunting;
+Handle g_Forward_OnZoomIn;
+Handle g_Forward_OnZoomOut;
+Handle g_Forward_OnFlagCapture;
+Handle g_Forward_OnControlPointCapturing;
+Handle g_Forward_OnControlPointCaptured;
 
 /*****************************/
 //Globals
 
 int g_LastButtons[MAXPLAYERS + 1];
+Handle g_OnWeaponFire;
 
 /*****************************/
 //Plugin Info
@@ -109,9 +116,14 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	g_Forward_OnArenaRoundStart = CreateGlobalForward("TF2_OnArenaRoundStart", ET_Ignore);
 	g_Forward_OnRoundEnd = CreateGlobalForward("TF2_OnRoundEnd", ET_Ignore, Param_Cell, Param_Cell, Param_Cell, Param_Cell, Param_Float, Param_Cell, Param_Cell);
 	g_Forward_OnPlayerSpawn = CreateGlobalForward("TF2_OnPlayerSpawn", ET_Ignore, Param_Cell, Param_Cell, Param_Cell);
-	g_Forward_OnPlayerDeath = CreateGlobalForward("TF2_OnPlayerDeath", ET_Ignore, Param_Cell, Param_Cell, Param_Cell, Param_Cell, Param_Cell, Param_Cell, Param_Cell);
+	g_Forward_OnPlayerDeath = CreateGlobalForward("TF2_OnPlayerDeath", ET_Ignore, Param_Cell, Param_Cell, Param_Cell, Param_Cell, Param_Cell, Param_Cell, Param_Cell, Param_Cell);
 	g_Forward_OnPlayerHealed = CreateGlobalForward("TF2_OnPlayerHealed", ET_Ignore, Param_Cell, Param_Cell, Param_Cell);
 	g_Forward_OnPlayerTaunting = CreateGlobalForward("TF2_OnPlayerTaunting", ET_Ignore, Param_Cell, Param_Cell, Param_Cell);
+	g_Forward_OnZoomIn = CreateGlobalForward("TF2_OnZoomIn", ET_Ignore, Param_Cell);
+	g_Forward_OnZoomOut = CreateGlobalForward("TF2_OnZoomOut", ET_Ignore, Param_Cell);
+	g_Forward_OnFlagCapture = CreateGlobalForward("TF2_OnFlagCapture", ET_Ignore, Param_Cell, Param_Cell);
+	g_Forward_OnControlPointCapturing = CreateGlobalForward("TF2_OnControlPointCapturing", ET_Ignore, Param_Cell, Param_String, Param_Cell, Param_Cell, Param_String, Param_Float);
+	g_Forward_OnControlPointCaptured = CreateGlobalForward("TF2_OnControlPointCaptured", ET_Ignore, Param_Cell, Param_String, Param_Cell, Param_String);
 	
 	return APLRes_Success;
 }
@@ -134,6 +146,9 @@ public void OnPluginStart()
 	HookEvent("teamplay_round_active", Event_OnRoundActive, EventHookMode_Post);
 	HookEvent("arena_round_start", Event_OnArenaRoundStart, EventHookMode_Post);
 	HookEvent("teamplay_round_win", Event_OnRoundFinished, EventHookMode_Post);
+	HookEvent("ctf_flag_captured", Event_OnFlagCapture, EventHookMode_Post);
+	HookEvent("teamplay_point_startcapture", Event_OnControlPointCapturing, EventHookMode_Post);
+	HookEvent("teamplay_point_captured", Event_OnControlPointCaptured, EventHookMode_Post);
 	
 	AddCommandListener(Listener_VoiceMenu, "voicemenu");
 	
@@ -151,6 +166,20 @@ public void OnPluginStart()
 	entity = -1;
 	while((entity = FindEntityByClassname(entity, "func_respawnroomvisualizer")) != -1)
 		SDKHook(entity, SDKHook_StartTouchPost, OnVisualizerRoomStartTouch);
+	
+	Handle config;
+	if ((config = LoadGameConfigFile("tf2.api")) != null)
+	{
+		int offset = GameConfGetOffset(config, "CBasePlayer::OnMyWeaponFired");
+		
+		if (offset != -1)
+		{
+			g_OnWeaponFire = DHookCreate(offset, HookType_Entity, ReturnType_Void, ThisPointer_CBaseEntity, OnMyWeaponFired);
+			DHookAddParam(g_OnWeaponFire, HookParamType_Int);
+		}
+		
+		delete config;
+	}
 }
 
 public void OnClientPutInServer(int client)
@@ -159,6 +188,21 @@ public void OnClientPutInServer(int client)
 	SDKHook(client, SDKHook_OnTakeDamageAlive, OnTakeDamageAlive);
 	SDKHook(client, SDKHook_OnTakeDamagePost, OnTakeDamagePost);
 	SDKHook(client, SDKHook_OnTakeDamageAlivePost, OnTakeDamageAlivePost);
+	
+	DHookEntity(g_OnWeaponFire, true, client);
+}
+
+public MRESReturn OnMyWeaponFired(int client, Handle hReturn, Handle hParams)
+{
+	if (client < 1 || client > MaxClients || !IsValidEntity(client) || !IsPlayerAlive(client))
+		return MRES_Ignored;
+	
+	Call_StartForward(g_Forward_OnWeaponFirePost);
+	Call_PushCell(client);
+	Call_PushCell(GetEntProp(client, Prop_Send, "m_hActiveWeapon"));
+	Call_Finish();
+	
+	return MRES_Ignored;
 }
 
 public Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, int& damagetype, int& weapon, float damageForce[3], float damagePosition[3], int damagecustom)
@@ -311,6 +355,7 @@ public void Event_OnPlayerDeath(Event event, const char[] name, bool dontBroadca
 	Call_PushCell(GetClientOfUserId(event.GetInt("userid")));
 	Call_PushCell(GetClientOfUserId(event.GetInt("attacker")));
 	Call_PushCell(GetClientOfUserId(event.GetInt("assister")));
+	Call_PushCell(event.GetInt("inflictor_entindex"));
 	Call_PushCell(event.GetInt("damagebits"));
 	Call_PushCell(event.GetInt("stun_flags"));
 	Call_PushCell(event.GetInt("death_flags"));
@@ -344,14 +389,6 @@ public void Event_OnChangeClassPost(Event event, const char[] name, bool dontBro
 	Call_StartForward(g_Forward_OnClassChangePost);
 	Call_PushCell(client);
 	Call_PushCell(class);
-	Call_Finish();
-}
-
-public Action TF2_CalcIsAttackCritical(int client, int weapon, char[] weaponname, bool& result)
-{
-	Call_StartForward(g_Forward_OnWeaponFirePost);
-	Call_PushCell(client);
-	Call_PushCell(weapon);
 	Call_Finish();
 }
 
@@ -718,4 +755,66 @@ public void TF2_OnConditionAdded(int client, TFCond condition)
 		Call_PushCell(GetEntProp(client, Prop_Send, "m_iTauntItemDefIndex"));
 		Call_Finish();
 	}
+	else if (condition == TFCond_Zoomed)
+	{
+		Call_StartForward(g_Forward_OnZoomIn);
+		Call_PushCell(client);
+		Call_Finish();
+	}
+}
+
+public void TF2_OnConditionRemoved(int client, TFCond condition)
+{
+	if (condition == TFCond_Zoomed)
+	{
+		Call_StartForward(g_Forward_OnZoomOut);
+		Call_PushCell(client);
+		Call_Finish();
+	}
+}
+
+public void Event_OnFlagCapture(Event event, const char[] name, bool dontBroadcast)
+{
+	Call_StartForward(g_Forward_OnFlagCapture);
+	Call_PushCell(event.GetInt("capping_team"));
+	Call_PushCell(event.GetInt("capping_team_score"));
+	Call_Finish();
+}
+
+public void Event_OnControlPointCapturing(Event event, const char[] name, bool dontBroadcast)
+{
+	Call_StartForward(g_Forward_OnControlPointCapturing);
+	Call_PushCell(event.GetInt("cp"));
+	
+	char cpname[128];
+	event.GetString("cpname", cpname, sizeof(cpname));
+	Call_PushString(cpname);
+	
+	Call_PushCell(event.GetInt("team"));
+	Call_PushCell(event.GetInt("capteam"));
+	
+	char cappers[128];
+	event.GetString("cpname", cappers, sizeof(cappers));
+	Call_PushString(cappers);
+	
+	Call_PushFloat(event.GetFloat("captime"));
+	Call_Finish();
+}
+
+public void Event_OnControlPointCaptured(Event event, const char[] name, bool dontBroadcast)
+{
+	Call_StartForward(g_Forward_OnControlPointCaptured);
+	Call_PushCell(event.GetInt("cp"));
+	
+	char cpname[128];
+	event.GetString("cpname", cpname, sizeof(cpname));
+	Call_PushString(cpname);
+	
+	Call_PushCell(event.GetInt("team"));
+	
+	char cappers[128];
+	event.GetString("cappers", cappers, sizeof(cappers));
+	Call_PushString(cappers);
+	
+	Call_Finish();
 }

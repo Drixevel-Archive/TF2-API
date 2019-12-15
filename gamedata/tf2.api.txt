@@ -1,0 +1,14 @@
+"Games"
+{
+	"tf"
+	{
+		"Offsets"
+		{
+			"CBasePlayer::OnMyWeaponFired"
+			{
+				"windows"	"350"
+				"linux"		"351"
+			}
+		}
+	}
+}

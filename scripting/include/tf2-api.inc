@@ -8,6 +8,15 @@
 ////////////////////////////
 //Globals
 
+enum Touch
+{
+	Hook_OnStartTouch,
+	Hook_OnStartTouchPost,
+	Hook_OnTouch,
+	Hook_OnTouchPost,
+	Hook_OnEndTouch,
+	Hook_OnEndTouchPost
+}
 
 ////////////////////////////
 //Natives
@@ -51,12 +60,12 @@ forward void TF2_OnPlayerSpawn(int client, int team, int class);
 forward void TF2_OnPlayerDeath(int client, int attacker, int assister, int inflictor, int damagebits, int stun_flags, int death_flags, int customkill);
 forward void TF2_OnPlayerHealed(int patient, int healer, int amount);
 forward void TF2_OnPlayerTaunting(int client, int index, int defindex);
-forward void TF2_OnPlayerTaunting(int client);
 forward void TF2_OnZoomIn(int client);
 forward void TF2_OnZoomOut(int client);
 forward void TF2_OnFlagCapture(int team, int score);
 forward void TF2_OnControlPointCapturing(int index, char[] name, int ownerteam, int cappingteam, char[] cappers, float captime);
 forward void TF2_OnControlPointCaptured(int index, char[] name, int cappingteam, char[] cappers);
+forward void TF2_OnPlayerTouch(int client, int touched, Touch type);
 
 #if !defined REQUIRE_PLUGIN
 public void __pl_tf2_api_SetNTVOptional()

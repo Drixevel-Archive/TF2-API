@@ -7,7 +7,7 @@
 //Defines
 #define PLUGIN_NAME "[TF2] API"
 #define PLUGIN_DESCRIPTION "Offers other plugins easy API for some basic TF2 features."
-#define PLUGIN_VERSION "1.1.6"
+#define PLUGIN_VERSION "1.1.9"
 
 #define MAX_BUTTONS 25
 
@@ -63,6 +63,7 @@ Handle g_Forward_OnZoomOut;
 Handle g_Forward_OnFlagCapture;
 Handle g_Forward_OnControlPointCapturing;
 Handle g_Forward_OnControlPointCaptured;
+Handle g_Forward_OnPlayerTouch;
 
 /*****************************/
 //Globals
@@ -124,6 +125,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	g_Forward_OnFlagCapture = CreateGlobalForward("TF2_OnFlagCapture", ET_Ignore, Param_Cell, Param_Cell);
 	g_Forward_OnControlPointCapturing = CreateGlobalForward("TF2_OnControlPointCapturing", ET_Ignore, Param_Cell, Param_String, Param_Cell, Param_Cell, Param_String, Param_Float);
 	g_Forward_OnControlPointCaptured = CreateGlobalForward("TF2_OnControlPointCaptured", ET_Ignore, Param_Cell, Param_String, Param_Cell, Param_String);
+	g_Forward_OnPlayerTouch = CreateGlobalForward("TF2_OnPlayerTouch", ET_Ignore, Param_Cell, Param_Cell, Param_Cell);
 	
 	return APLRes_Success;
 }
@@ -151,10 +153,6 @@ public void OnPluginStart()
 	HookEvent("teamplay_point_captured", Event_OnControlPointCaptured, EventHookMode_Post);
 	
 	AddCommandListener(Listener_VoiceMenu, "voicemenu");
-	
-	for (int i = 1; i <= MaxClients; i++)
-		if (IsClientInGame(i))
-			OnClientPutInServer(i);
 
 	int entity = -1;
 	while((entity = FindEntityByClassname(entity, "func_respawnroom")) != -1)
@@ -180,6 +178,10 @@ public void OnPluginStart()
 		
 		delete config;
 	}
+	
+	for (int i = 1; i <= MaxClients; i++)
+		if (IsClientInGame(i))
+			OnClientPutInServer(i);
 }
 
 public void OnClientPutInServer(int client)
@@ -189,20 +191,15 @@ public void OnClientPutInServer(int client)
 	SDKHook(client, SDKHook_OnTakeDamagePost, OnTakeDamagePost);
 	SDKHook(client, SDKHook_OnTakeDamageAlivePost, OnTakeDamageAlivePost);
 	
-	DHookEntity(g_OnWeaponFire, true, client);
-}
-
-public MRESReturn OnMyWeaponFired(int client, Handle hReturn, Handle hParams)
-{
-	if (client < 1 || client > MaxClients || !IsValidEntity(client) || !IsPlayerAlive(client))
-		return MRES_Ignored;
+	SDKHook(client, SDKHook_StartTouch, OnStartTouch);
+	SDKHook(client, SDKHook_StartTouchPost, OnStartTouchPost);
+	SDKHook(client, SDKHook_Touch, OnTouch);
+	SDKHook(client, SDKHook_TouchPost, OnTouchPost);
+	SDKHook(client, SDKHook_EndTouch, OnEndTouch);
+	SDKHook(client, SDKHook_EndTouchPost, OnEndTouchPost);
 	
-	Call_StartForward(g_Forward_OnWeaponFirePost);
-	Call_PushCell(client);
-	Call_PushCell(GetEntProp(client, Prop_Send, "m_hActiveWeapon"));
-	Call_Finish();
-	
-	return MRES_Ignored;
+	if (g_OnWeaponFire != null)
+		DHookEntity(g_OnWeaponFire, true, client);
 }
 
 public Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, int& damagetype, int& weapon, float damageForce[3], float damagePosition[3], int damagecustom)
@@ -283,6 +280,73 @@ public void OnTakeDamageAlivePost(int victim, int attacker, int inflictor, float
 	Call_PushCell(damagecustom);
 	Call_PushCell(true);
 	Call_Finish();
+}
+
+public Action OnStartTouch(int entity, int other)
+{
+	Call_StartForward(g_Forward_OnPlayerTouch);
+	Call_PushCell(entity);
+	Call_PushCell(other);
+	Call_PushCell(Hook_OnStartTouch);
+	Call_Finish();
+}
+
+public void OnStartTouchPost(int entity, int other)
+{
+	Call_StartForward(g_Forward_OnPlayerTouch);
+	Call_PushCell(entity);
+	Call_PushCell(other);
+	Call_PushCell(Hook_OnStartTouchPost);
+	Call_Finish();
+}
+
+public Action OnTouch(int entity, int other)
+{
+	Call_StartForward(g_Forward_OnPlayerTouch);
+	Call_PushCell(entity);
+	Call_PushCell(other);
+	Call_PushCell(Hook_OnTouch);
+	Call_Finish();
+}
+
+public void OnTouchPost(int entity, int other)
+{
+	Call_StartForward(g_Forward_OnPlayerTouch);
+	Call_PushCell(entity);
+	Call_PushCell(other);
+	Call_PushCell(Hook_OnTouchPost);
+	Call_Finish();
+}
+
+public Action OnEndTouch(int entity, int other)
+{
+	Call_StartForward(g_Forward_OnPlayerTouch);
+	Call_PushCell(entity);
+	Call_PushCell(other);
+	Call_PushCell(Hook_OnEndTouch);
+	Call_Finish();
+}
+
+public void OnEndTouchPost(int entity, int other)
+{
+	Call_StartForward(g_Forward_OnPlayerTouch);
+	Call_PushCell(entity);
+	Call_PushCell(other);
+	Call_PushCell(Hook_OnEndTouchPost);
+	Call_Finish();
+}
+
+public MRESReturn OnMyWeaponFired(int client, Handle hReturn, Handle hParams)
+{
+	if (client < 1 || client > MaxClients || !IsValidEntity(client) || !IsPlayerAlive(client))
+		return MRES_Ignored;
+	
+	Call_StartForward(g_Forward_OnWeaponFirePost);
+	Call_PushCell(client);
+	Call_PushCell(GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon"));
+	Call_Finish();
+	
+	return MRES_Ignored;
 }
 
 public void OnEntityCreated(int entity, const char[] classname)

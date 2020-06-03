@@ -21,7 +21,13 @@ enum Touch
 ////////////////////////////
 //Natives
 
-//native void PluginName_Native(const char[] sFlag, char[] sBuffer, int iSize);
+native bool TF2_IsClientRespawning(int client);
+native float TF2_GetTeamRespawnTime(int team);
+native float TF2_GetClientRespawnTime(int client);
+native bool TF2_SetClientRespawnTime(int client, float time);
+native bool TF2_UpdateClientRespawnTime(int client, float time);
+native bool TF2_SetTeamRespawnTime(int team,float time);
+native bool TF2_UpdateTeamRespawnTime(int team, float time);
 
 ////////////////////////////
 //Forwards
@@ -66,6 +72,10 @@ forward void TF2_OnFlagCapture(int team, int score);
 forward void TF2_OnControlPointCapturing(int index, char[] name, int ownerteam, int cappingteam, char[] cappers, float captime);
 forward void TF2_OnControlPointCaptured(int index, char[] name, int cappingteam, char[] cappers);
 forward void TF2_OnPlayerTouch(int client, int touched, Touch type);
+forward void TF2_OnPlayerEat(int client, int weapon);
+forward Action TF2_OnRespawnSet(int client, float &time);
+forward Action TF2_OnRespawnUpdated(int client, float &time);
+forward Action TF2_OnTeamRespawnUpdated(int team, float &time);
 
 #if !defined REQUIRE_PLUGIN
 public void __pl_tf2_api_SetNTVOptional()

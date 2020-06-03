@@ -1,4 +1,10 @@
 /*****************************/
+//Credits
+
+//Drixevel - The plugin itself and a good portion of the natives/forwards.
+//Benoist3012 - Respawn Natives/Forwards
+
+/*****************************/
 //Pragma
 #pragma semicolon 1
 #pragma newdecls required
@@ -7,9 +13,15 @@
 //Defines
 #define PLUGIN_NAME "[TF2] API"
 #define PLUGIN_DESCRIPTION "Offers other plugins easy API for some basic TF2 features."
-#define PLUGIN_VERSION "1.1.9"
+#define PLUGIN_VERSION "1.2.1"
 
 #define MAX_BUTTONS 25
+
+#define TF_TEAM_RED 2
+#define TF_TEAM_BLUE 3
+
+#define MAX_TEAM 4
+#define INFINITE_RESPAWN_TIME 99999.0
 
 /*****************************/
 //Includes
@@ -64,10 +76,22 @@ Handle g_Forward_OnFlagCapture;
 Handle g_Forward_OnControlPointCapturing;
 Handle g_Forward_OnControlPointCaptured;
 Handle g_Forward_OnPlayerTouch;
+Handle g_Forward_OnPlayerEat;
+Handle g_Forward_OnRespawnSet;
+Handle g_Forward_OnRespawnUpdated;
+Handle g_Forward_OnTeamRespawnUpdated;
 
 /*****************************/
 //Globals
 
+//Respawn Logic
+int g_PlayerManager;
+float g_RespawnTime[MAXPLAYERS + 1];
+float g_TeamRespawnTime[MAX_TEAM];
+float g_OldRespawnTime[MAX_TEAM];
+ConVar convar_RespawnWaveTimes;
+
+//Buttons
 int g_LastButtons[MAXPLAYERS + 1];
 Handle g_OnWeaponFire;
 
@@ -85,6 +109,14 @@ public Plugin myinfo =
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
 	RegPluginLibrary("tf2-api");
+
+	CreateNative("TF2_IsClientRespawning", Native_IsClientRespawning);
+	CreateNative("TF2_GetTeamRespawnTime", Native_GetTeamRespawnTime);
+	CreateNative("TF2_GetClientRespawnTime", Native_GetClientRespawnTime);
+	CreateNative("TF2_SetClientRespawnTime", Native_SetClientRespawnTime);
+	CreateNative("TF2_UpdateClientRespawnTime", Native_UpdateClientRespawnTime);
+	CreateNative("TF2_SetTeamRespawnTime", Native_SetTeamRespawnTime);
+	CreateNative("TF2_UpdateTeamRespawnTime", Native_UpdateTeamRespawnTime);
 	
 	g_Forward_OnPlayerDamaged = CreateGlobalForward("TF2_OnPlayerDamaged", ET_Event, Param_Cell, Param_Cell, Param_CellByRef, Param_Cell, Param_CellByRef, Param_FloatByRef, Param_CellByRef, Param_CellByRef, Param_Array, Param_Array, Param_Cell, Param_Cell);
 	g_Forward_OnPlayerDamagedPost = CreateGlobalForward("TF2_OnPlayerDamagedPost", ET_Ignore, Param_Cell, Param_Cell, Param_Cell, Param_Cell, Param_Cell, Param_Float, Param_Cell, Param_Cell, Param_Array, Param_Array, Param_Cell, Param_Cell);
@@ -126,6 +158,10 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	g_Forward_OnControlPointCapturing = CreateGlobalForward("TF2_OnControlPointCapturing", ET_Ignore, Param_Cell, Param_String, Param_Cell, Param_Cell, Param_String, Param_Float);
 	g_Forward_OnControlPointCaptured = CreateGlobalForward("TF2_OnControlPointCaptured", ET_Ignore, Param_Cell, Param_String, Param_Cell, Param_String);
 	g_Forward_OnPlayerTouch = CreateGlobalForward("TF2_OnPlayerTouch", ET_Ignore, Param_Cell, Param_Cell, Param_Cell);
+	g_Forward_OnPlayerEat = CreateGlobalForward("TF2_OnPlayerEat", ET_Ignore, Param_Cell, Param_Cell);
+	g_Forward_OnRespawnSet = CreateGlobalForward("TF2_OnRespawnSet", ET_Hook, Param_Cell, Param_FloatByRef);
+	g_Forward_OnRespawnUpdated = CreateGlobalForward("TF2_OnRespawnUpdated", ET_Hook, Param_Cell, Param_FloatByRef);
+	g_Forward_OnTeamRespawnUpdated = CreateGlobalForward("TF2_OnTeamRespawnUpdated", ET_Hook, Param_Cell, Param_FloatByRef);
 	
 	return APLRes_Success;
 }
@@ -182,6 +218,50 @@ public void OnPluginStart()
 	for (int i = 1; i <= MaxClients; i++)
 		if (IsClientInGame(i))
 			OnClientPutInServer(i);
+	
+	AddNormalSoundHook(OnPlaySound);
+
+	convar_RespawnWaveTimes = FindConVar("mp_respawnwavetime");
+	HookConVarChange(convar_RespawnWaveTimes, Cvar_RespawnWaveTimeChange);
+
+	CreateTimer(1.0, Timer_AverageUpdateRespawnTime, _, TIMER_REPEAT);
+}
+
+public void Cvar_RespawnWaveTimeChange(ConVar convar, const char[] oldValue, const char[] newValue)
+{
+	float oldtime = StringToFloat(oldValue);
+	float newtime = StringToFloat(newValue);
+	
+	for (int i = TF_TEAM_RED; i <= TF_TEAM_BLUE; i++)
+	{
+		g_TeamRespawnTime[i] -= oldtime;
+		g_TeamRespawnTime[i] += newtime;
+	}
+
+	TF2_RecalculateRespawnTime();
+}
+
+public void OnMapStart()
+{
+	g_PlayerManager = GetPlayerResourceEntity();
+	
+	g_TeamRespawnTime[TF_TEAM_BLUE] = GameRules_GetPropFloat("m_TeamRespawnWaveTimes", TF_TEAM_BLUE);
+	g_TeamRespawnTime[TF_TEAM_RED] = GameRules_GetPropFloat("m_TeamRespawnWaveTimes", TF_TEAM_RED);
+	
+	if (g_TeamRespawnTime[TF_TEAM_BLUE] >= INFINITE_RESPAWN_TIME)
+		g_TeamRespawnTime[TF_TEAM_BLUE] = 10.0;
+	
+	if (g_TeamRespawnTime[TF_TEAM_RED] >= INFINITE_RESPAWN_TIME)
+		g_TeamRespawnTime[TF_TEAM_BLUE] = 10.0;
+	
+	g_TeamRespawnTime[TF_TEAM_BLUE] += convar_RespawnWaveTimes.FloatValue;
+	g_TeamRespawnTime[TF_TEAM_RED] += convar_RespawnWaveTimes.FloatValue;
+	
+	g_OldRespawnTime[TF_TEAM_BLUE] = g_TeamRespawnTime[TF_TEAM_BLUE];
+	g_OldRespawnTime[TF_TEAM_RED] = g_TeamRespawnTime[TF_TEAM_RED];
+	
+	GameRules_SetPropFloat("m_TeamRespawnWaveTimes", INFINITE_RESPAWN_TIME, TF_TEAM_BLUE);
+	GameRules_SetPropFloat("m_TeamRespawnWaveTimes", INFINITE_RESPAWN_TIME, TF_TEAM_RED);
 }
 
 public void OnClientPutInServer(int client)
@@ -402,6 +482,10 @@ public void Event_OnPlayerSpawn(Event event, const char[] name, bool dontBroadca
 	Call_PushCell(event.GetInt("team"));
 	Call_PushCell(event.GetInt("class"));
 	Call_Finish();
+
+	int client = GetClientOfUserId(event.GetInt("userid"));
+	g_RespawnTime[client] = 0.0;
+	SDKUnhook(client, SDKHook_SetTransmit, OverrideRespawnHud);
 }
 
 public void Event_OnPlayerHealed(Event event, const char[] name, bool dontBroadcast)
@@ -425,6 +509,29 @@ public void Event_OnPlayerDeath(Event event, const char[] name, bool dontBroadca
 	Call_PushCell(event.GetInt("death_flags"));
 	Call_PushCell(event.GetInt("customkill"));
 	Call_Finish();
+
+	int client = GetClientOfUserId(event.GetInt("userid"));
+
+	if (event.GetInt("death_flags") & TF_DEATHFLAG_DEADRINGER)
+		return;
+	
+	if (GetClientTeam(client) > 1 && g_RespawnTime[client] <= 0.0)
+	{
+		float flRespawnTime = g_TeamRespawnTime[GetClientTeam(client)];
+		float flRespawnTime2 = flRespawnTime;
+
+		Call_StartForward(g_Forward_OnRespawnSet);
+		Call_PushCell(client);
+		Call_PushFloatRef(flRespawnTime2);
+
+		Action action;
+		Call_Finish(action);
+
+		if (action == Plugin_Changed)
+			flRespawnTime = flRespawnTime2;
+		
+		TF2_SetClientRespawnTimeEx(client, flRespawnTime);
+	}
 }
 
 public Action Event_OnChangeClass(Event event, const char[] name, bool dontBroadcast)
@@ -881,4 +988,202 @@ public void Event_OnControlPointCaptured(Event event, const char[] name, bool do
 	Call_PushString(cappers);
 	
 	Call_Finish();
+}
+
+public Action OnPlaySound(int clients[MAXPLAYERS], int &numClients, char sample[PLATFORM_MAX_PATH], int &entity, int &channel, float &volume, int &level, int &pitch, int &flags, char soundEntry[PLATFORM_MAX_PATH], int &seed)
+{
+	if (StrEqual(sample, "vo/SandwichEat09.mp3", false))
+	{
+		Call_StartForward(g_Forward_OnPlayerEat);
+		Call_PushCell(entity);
+		Call_PushCell(GetEntPropEnt(entity, Prop_Send, "m_hActiveWeapon"));
+		Call_Finish();
+	}
+	
+	return Plugin_Continue;
+}
+
+public Action Timer_AverageUpdateRespawnTime(Handle timer)
+{
+	for (int i = TF_TEAM_RED; i <= TF_TEAM_BLUE; i++)
+	{
+		float currenttime = GameRules_GetPropFloat("m_TeamRespawnWaveTimes", i);
+		
+		if (currenttime != INFINITE_RESPAWN_TIME)
+		{
+			currenttime += convar_RespawnWaveTimes.FloatValue;
+
+			float respawntime = currenttime;
+			Call_StartForward(g_Forward_OnTeamRespawnUpdated);
+			Call_PushCell(i);
+			Call_PushFloatRef(respawntime);
+
+			Action action;
+			Call_Finish(action);
+
+			if (action == Plugin_Changed)
+				currenttime = respawntime;
+		
+			g_TeamRespawnTime[i] = currenttime;
+			TF2_RecalculateRespawnTime();
+			GameRules_SetPropFloat("m_TeamRespawnWaveTimes", INFINITE_RESPAWN_TIME, i);
+		}
+	}
+}
+
+void TF2_RecalculateRespawnTime()
+{
+	for (int i = TF_TEAM_RED; i <= TF_TEAM_BLUE; i++)
+	{
+		if (g_TeamRespawnTime[i] != g_OldRespawnTime[i])
+		{
+			float deltatime = g_TeamRespawnTime[i] - g_OldRespawnTime[i];
+			TF2_UpdateTeamRespawnEx(i, deltatime);
+			
+			g_OldRespawnTime[i] = g_TeamRespawnTime[i];
+		}
+	}
+}
+
+void TF2_SetClientRespawnTimeEx(int client, float time)
+{
+	SDKHook(client, SDKHook_SetTransmit, OverrideRespawnHud);
+	g_RespawnTime[client] = GetGameTime() + time;
+}
+
+void TF2_UpdateTeamRespawnEx(int team, float time)
+{
+	for (int i=1; i<=MaxClients; i++)
+	{
+		if (IsClientInGame(i) && GetClientTeam(i) == team && g_RespawnTime[i] > 0.0)
+		{
+			if (!IsPlayerAlive(i))
+			{
+				float newtime = time;
+
+				Call_StartForward(g_Forward_OnRespawnUpdated);
+				Call_PushCell(i);
+				Call_PushFloatRef(newtime);
+
+				Action action;
+				Call_Finish(action);
+
+				if (action == Plugin_Changed)
+					time = newtime;
+				
+				g_RespawnTime[i] += time;
+			}
+		}
+	}
+}
+
+void TF2_UpdateTeamRespawnEx2(int team, float time)
+{
+	for (int i = 1; i <= MaxClients; i++)
+		if (IsClientInGame(i) && !IsPlayerAlive(i) && GetClientTeam(i) == team && g_RespawnTime[i] > 0.0)
+			g_RespawnTime[i] += time;
+}
+
+public Action OverrideRespawnHud(int client, int other)
+{
+	if (client != other)
+		return;
+	
+	SetEntPropFloat(g_PlayerManager, Prop_Send, "m_flNextRespawnTime", g_RespawnTime[client], client);
+	
+	if (IsPlayerAlive(client))
+	{
+		g_RespawnTime[client] = 0.0;
+		SDKUnhook(client, SDKHook_SetTransmit, OverrideRespawnHud);
+	}
+
+	if (g_RespawnTime[client] < GetGameTime())
+	{
+		TF2_RespawnPlayer(client);
+		g_RespawnTime[client] = 0.0;
+		SDKUnhook(client, SDKHook_SetTransmit, OverrideRespawnHud);
+	}
+}
+
+public int Native_IsClientRespawning(Handle hPlugin,int iNumParams)
+{
+	int client = GetNativeCell(1);
+	
+	if (g_RespawnTime[client] > 0.0 && !IsPlayerAlive(client))
+		return view_as<bool>(true);
+	
+	return view_as<bool>(false);
+}
+
+public int Native_GetTeamRespawnTime(Handle hPlugin,int iNumParams)
+{
+	int team = GetNativeCell(1);
+	float time = 0.0;
+	
+	if (1 < team < 4)
+		time = GameRules_GetPropFloat("m_TeamRespawnWaveTimes", team);
+	
+	return view_as<int>(time);
+}
+
+public int Native_GetClientRespawnTime(Handle hPlugin,int iNumParams)
+{
+	int time = GetNativeCell(1);
+	return view_as<int>(g_RespawnTime[time]);
+}
+
+public int Native_SetClientRespawnTime(Handle hPlugin,int iNumParams)
+{
+	int client = GetNativeCell(1);
+	float time = view_as<float>(GetNativeCell(2));
+	
+	if (IsClientInGame(client) && !IsPlayerAlive(client) && g_RespawnTime[client] <= 0.0)
+	{
+		TF2_SetClientRespawnTimeEx(client, time);
+		return view_as<bool>(true);
+	}
+
+	return view_as<bool>(false);
+}
+
+public int Native_UpdateClientRespawnTime(Handle hPlugin,int iNumParams)
+{
+	int client = GetNativeCell(1);
+	float time = view_as<float>(GetNativeCell(2));
+	
+	if (IsClientInGame(client) && !IsPlayerAlive(client))
+	{
+		g_RespawnTime[client] += time;
+		return view_as<bool>(true);
+	}
+	
+	return view_as<bool>(false);
+}
+
+public int Native_SetTeamRespawnTime(Handle hPlugin,int iNumParams)
+{
+	int team = GetNativeCell(1);
+	float time = view_as<float>(GetNativeCell(2));
+	
+	if (1 < team < 4)
+	{
+		GameRules_SetPropFloat("m_TeamRespawnWaveTimes", time, team);
+		return view_as<bool>(true);
+	}
+
+	return view_as<bool>(false);
+}
+
+public int Native_UpdateTeamRespawnTime(Handle hPlugin,int iNumParams)
+{
+	int team = GetNativeCell(1);
+	float time = view_as<float>(GetNativeCell(2));
+	
+	if (1 < team < 4)
+	{
+		TF2_UpdateTeamRespawnEx2(team, time);
+		return view_as<bool>(true);
+	}
+
+	return view_as<bool>(false);
 }

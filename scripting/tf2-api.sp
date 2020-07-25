@@ -13,7 +13,7 @@
 //Defines
 #define PLUGIN_NAME "[TF2] API"
 #define PLUGIN_DESCRIPTION "Offers other plugins easy API for some basic TF2 features."
-#define PLUGIN_VERSION "1.2.1"
+#define PLUGIN_VERSION "1.2.2"
 
 #define MAX_BUTTONS 25
 
@@ -94,6 +94,8 @@ ConVar convar_RespawnWaveTimes;
 //Buttons
 int g_LastButtons[MAXPLAYERS + 1];
 Handle g_OnWeaponFire;
+
+bool g_IsRoundActive;
 
 /*****************************/
 //Plugin Info
@@ -632,13 +634,13 @@ public Action Listener_VoiceMenu(int client, const char[] command, int argc)
 
 	char sVoice2[32];
 	GetCmdArg(2, sVoice2, sizeof(sVoice2));
-
-	if (StringToInt(sVoice) != 0 && StringToInt(sVoice2) != 0)
+	
+	if (!StrEqual(sVoice, "0", false) || !StrEqual(sVoice2, "0", false))
 		return Plugin_Continue;
 	
 	Call_StartForward(g_Forward_OnCallMedic);
 	Call_PushCell(client);
-		
+	
 	Action status = Plugin_Continue;
 	Call_Finish(status);
 	
@@ -889,6 +891,8 @@ public void Event_OnRoundStart(Event event, const char[] name, bool dontBroadcas
 	Call_StartForward(g_Forward_OnRoundStart);
 	Call_PushCell(event.GetInt("full_reset"));
 	Call_Finish();
+	
+	g_IsRoundActive = true;
 }
 
 public void Event_OnRoundActive(Event event, const char[] name, bool dontBroadcast)
@@ -914,6 +918,8 @@ public void Event_OnRoundFinished(Event event, const char[] name, bool dontBroad
 	Call_PushCell(event.GetInt("losing_team_num_caps"));
 	Call_PushCell(event.GetInt("was_sudden_death"));
 	Call_Finish();
+	
+	g_IsRoundActive = false;
 }
 
 public void TF2_OnConditionAdded(int client, TFCond condition)
@@ -1097,7 +1103,7 @@ public Action OverrideRespawnHud(int client, int other)
 		SDKUnhook(client, SDKHook_SetTransmit, OverrideRespawnHud);
 	}
 
-	if (g_RespawnTime[client] < GetGameTime())
+	if (g_RespawnTime[client] > 0.0 && g_RespawnTime[client] < GetGameTime() && g_IsRoundActive)
 	{
 		TF2_RespawnPlayer(client);
 		g_RespawnTime[client] = 0.0;

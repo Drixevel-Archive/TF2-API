@@ -85,7 +85,7 @@ Handle g_Forward_OnTeamRespawnUpdated;
 //Globals
 
 //Respawn Logic
-int g_PlayerManager;
+//int g_PlayerManager;
 float g_RespawnTime[MAXPLAYERS + 1];
 float g_TeamRespawnTime[MAX_TEAM];
 float g_OldRespawnTime[MAX_TEAM];
@@ -95,7 +95,7 @@ ConVar convar_RespawnWaveTimes;
 int g_LastButtons[MAXPLAYERS + 1];
 Handle g_OnWeaponFire;
 
-bool g_IsRoundActive;
+//bool g_IsRoundActive;
 
 /*****************************/
 //Plugin Info
@@ -245,7 +245,7 @@ public void Cvar_RespawnWaveTimeChange(ConVar convar, const char[] oldValue, con
 
 public void OnMapStart()
 {
-	g_PlayerManager = GetPlayerResourceEntity();
+	//g_PlayerManager = GetPlayerResourceEntity();
 	
 	g_TeamRespawnTime[TF_TEAM_BLUE] = GameRules_GetPropFloat("m_TeamRespawnWaveTimes", TF_TEAM_BLUE);
 	g_TeamRespawnTime[TF_TEAM_RED] = GameRules_GetPropFloat("m_TeamRespawnWaveTimes", TF_TEAM_RED);
@@ -487,7 +487,7 @@ public void Event_OnPlayerSpawn(Event event, const char[] name, bool dontBroadca
 
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	g_RespawnTime[client] = 0.0;
-	SDKUnhook(client, SDKHook_SetTransmit, OverrideRespawnHud);
+	//SDKUnhook(client, SDKHook_SetTransmit, OverrideRespawnHud);
 }
 
 public void Event_OnPlayerHealed(Event event, const char[] name, bool dontBroadcast)
@@ -892,7 +892,7 @@ public void Event_OnRoundStart(Event event, const char[] name, bool dontBroadcas
 	Call_PushCell(event.GetInt("full_reset"));
 	Call_Finish();
 	
-	g_IsRoundActive = true;
+	//g_IsRoundActive = true;
 }
 
 public void Event_OnRoundActive(Event event, const char[] name, bool dontBroadcast)
@@ -919,7 +919,7 @@ public void Event_OnRoundFinished(Event event, const char[] name, bool dontBroad
 	Call_PushCell(event.GetInt("was_sudden_death"));
 	Call_Finish();
 	
-	g_IsRoundActive = false;
+	//g_IsRoundActive = false;
 }
 
 public void TF2_OnConditionAdded(int client, TFCond condition)
@@ -1053,7 +1053,7 @@ void TF2_RecalculateRespawnTime()
 
 void TF2_SetClientRespawnTimeEx(int client, float time)
 {
-	SDKHook(client, SDKHook_SetTransmit, OverrideRespawnHud);
+	//SDKHook(client, SDKHook_SetTransmit, OverrideRespawnHud);
 	g_RespawnTime[client] = GetGameTime() + time;
 }
 
@@ -1090,7 +1090,7 @@ void TF2_UpdateTeamRespawnEx2(int team, float time)
 			g_RespawnTime[i] += time;
 }
 
-public Action OverrideRespawnHud(int client, int other)
+/*public Action OverrideRespawnHud(int client, int other)
 {
 	if (client != other)
 		return;
@@ -1109,7 +1109,7 @@ public Action OverrideRespawnHud(int client, int other)
 		g_RespawnTime[client] = 0.0;
 		SDKUnhook(client, SDKHook_SetTransmit, OverrideRespawnHud);
 	}
-}
+}*/
 
 public int Native_IsClientRespawning(Handle hPlugin,int iNumParams)
 {

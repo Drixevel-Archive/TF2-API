@@ -3,6 +3,7 @@
 
 //Drixevel - The plugin itself and a good portion of the natives/forwards.
 //Benoist3012 - Respawn Natives/Forwards
+//Thrawn2 - Weapon fire position forward.
 
 /*****************************/
 //Pragma

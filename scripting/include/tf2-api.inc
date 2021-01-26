@@ -76,6 +76,7 @@ forward void TF2_OnPlayerEat(int client, int weapon);
 forward Action TF2_OnRespawnSet(int client, float &time);
 forward Action TF2_OnRespawnUpdated(int client, float &time);
 forward Action TF2_OnTeamRespawnUpdated(int team, float &time);
+forward void TF2_OnWeaponFirePosition(int client, float pos[3]);
 
 #if !defined REQUIRE_PLUGIN
 public void __pl_tf2_api_SetNTVOptional()

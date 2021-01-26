@@ -13,7 +13,7 @@
 //Defines
 #define PLUGIN_NAME "[TF2] API"
 #define PLUGIN_DESCRIPTION "Offers other plugins easy API for some basic TF2 features."
-#define PLUGIN_VERSION "1.2.2"
+#define PLUGIN_VERSION "1.2.3"
 
 #define MAX_BUTTONS 25
 
@@ -80,6 +80,7 @@ Handle g_Forward_OnPlayerEat;
 Handle g_Forward_OnRespawnSet;
 Handle g_Forward_OnRespawnUpdated;
 Handle g_Forward_OnTeamRespawnUpdated;
+Handle g_Forward_OnWeaponFirePosition;
 
 /*****************************/
 //Globals
@@ -94,6 +95,8 @@ ConVar convar_RespawnWaveTimes;
 //Buttons
 int g_LastButtons[MAXPLAYERS + 1];
 Handle g_OnWeaponFire;
+
+Handle g_OnWeaponShootPos;
 
 //bool g_IsRoundActive;
 
@@ -164,6 +167,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	g_Forward_OnRespawnSet = CreateGlobalForward("TF2_OnRespawnSet", ET_Hook, Param_Cell, Param_FloatByRef);
 	g_Forward_OnRespawnUpdated = CreateGlobalForward("TF2_OnRespawnUpdated", ET_Hook, Param_Cell, Param_FloatByRef);
 	g_Forward_OnTeamRespawnUpdated = CreateGlobalForward("TF2_OnTeamRespawnUpdated", ET_Hook, Param_Cell, Param_FloatByRef);
+	g_Forward_OnWeaponFirePosition = CreateGlobalForward("TF2_OnWeaponFirePosition", ET_Ignore, Param_Cell, Param_Array);
 	
 	return APLRes_Success;
 }
@@ -213,6 +217,11 @@ public void OnPluginStart()
 			g_OnWeaponFire = DHookCreate(offset, HookType_Entity, ReturnType_Void, ThisPointer_CBaseEntity, OnMyWeaponFired);
 			DHookAddParam(g_OnWeaponFire, HookParamType_Int);
 		}
+
+		offset = GameConfGetOffset(config, "CBasePlayer::Weapon_ShootPosition()");
+
+		if (offset != -1)
+			g_OnWeaponShootPos = DHookCreate(offset, HookType_Entity, ReturnType_Vector, ThisPointer_CBaseEntity, OnWeaponFirePosition);
 		
 		delete config;
 	}
@@ -282,6 +291,9 @@ public void OnClientPutInServer(int client)
 	
 	if (g_OnWeaponFire != null)
 		DHookEntity(g_OnWeaponFire, true, client);
+	
+	if (g_OnWeaponShootPos != null)
+		DHookEntity(g_OnWeaponShootPos, true, client, RemovalCB);
 }
 
 public Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, int& damagetype, int& weapon, float damageForce[3], float damagePosition[3], int damagecustom)
@@ -1192,4 +1204,22 @@ public int Native_UpdateTeamRespawnTime(Handle hPlugin,int iNumParams)
 	}
 
 	return view_as<bool>(false);
+}
+
+public MRESReturn OnWeaponFirePosition(int pThis, Handle hReturn)
+{
+	float vecPos[3];
+	DHookGetReturnVector(hReturn, vecPos);
+
+	Call_StartForward(g_Forward_OnWeaponFirePosition);
+	Call_PushCell(pThis);
+	Call_PushArray(vecPos, 3);
+	Call_Finish();
+
+	return MRES_Ignored;
+}
+
+public void RemovalCB(int hookid)
+{
+
 }

@@ -9,6 +9,12 @@
 				"windows"	"350"
 				"linux"		"351"
 			}
+			
+			"CBasePlayer::Weapon_ShootPosition()"
+			{
+				"windows"	"268"
+				"linux"		"269"
+			}
 		}
 	}
 }
